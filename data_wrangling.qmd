@@ -3,18 +3,29 @@ title: Data Wrangler
 jupyter: python3
 ---
 
+# Comparison and Integration of Fitness and Health Data from Multiple Wearable Ecosystems (Garmin, Apple)
 
-## Daten Importieren
+Luca Manna and Alexis Boser Makaratzis, Course: Data Wrangling, HS 25 2025, HSI FHNW
+
+Objective:
+Build a cleaned, combined, and reproducible dataset from fitness and health data of two wearable ecosystems (Garmin, Apple) to analyze differences and similarities in measurements (e.g., heart rate, steps, sleep, GPS activities).
 
 
-```{python}
-#| ExecuteTime: {end_time: '2025-09-19T07:56:32.252728Z', start_time: '2025-09-19T07:56:32.246794Z'}
-print("Hallo welt")
-```
+## LE1: Importieren
 
-```{python}
-#| ExecuteTime: {end_time: '2025-09-19T07:57:07.996218Z', start_time: '2025-09-19T07:57:07.992702Z'}
-print("Hallo Luca")
-```
+
+## LE2: Bereinigen
+
+
+## LE3: Transformieren
+
+
+## LE4: Verknüpfen
+
+
+## LE5: Datenpipelines
+
+
+## LE6: Reproduzierbarkeit
 
 
