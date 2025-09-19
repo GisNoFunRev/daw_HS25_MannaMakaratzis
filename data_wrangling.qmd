@@ -8,6 +8,13 @@ jupyter: python3
 
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-09-19T07:56:32.252728Z', start_time: '2025-09-19T07:56:32.246794Z'}
 print("Hallo welt")
 ```
+
+```{python}
+#| ExecuteTime: {end_time: '2025-09-19T07:57:07.996218Z', start_time: '2025-09-19T07:57:07.992702Z'}
+print("Hallo Luca")
+```
+
 
