@@ -3,15 +3,260 @@ title: Data Wrangler
 jupyter: python3
 ---
 
-# Comparison and Integration of Fitness and Health Data from Multiple Wearable Ecosystems (Garmin, Apple)
+```{python}
+import pandas as pd
+import numpy as np
+from lxml import etree
+import glob
+from pathlib import Path
+from datetime import datetime
+import warnings
 
-Luca Manna and Alexis Boser Makaratzis, Course: Data Wrangling, HS 25 2025, HSI FHNW
+warnings.filterwarnings("ignore")
+```
 
-Objective:
-Build a cleaned, combined, and reproducible dataset from fitness and health data of two wearable ecosystems (Garmin, Apple) to analyze differences and similarities in measurements (e.g., heart rate, steps, sleep, GPS activities).
+### 1. Garmin Data Import Strategy
 
+Datenquelle: CSV-Export aus Garmin Connect mit strukturierten Aktivitätsdaten.
 
-## LE1: Importieren
+Besondere Herausforderungen:
+  - Encoding-Problem: CSV-Dateien verwenden latin-1 statt Standard utf-8
+  - Semi-kolon Separator (europäisches Format)
+  - Spaltennamen nicht standardisiert (Leerzeichen, deutsche Umlaute möglich)
+
+Lösung: Multi-Encoding-Parser mit automatischer Erkennung und Spalten-Standardisierung.
+
+```{python}
+def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
+    """
+    Import all Garmin CSV files and combine into single DataFrame
+    Handle encoding issues (Garmin exports often use Latin-1/ISO-8859-1)
+    """
+    garmin_files = glob.glob(data_path)
+    garmin_dfs = []
+
+    for file in garmin_files:
+        # Extract date from path (e.g., 2025-08-22)
+        export_date = Path(file).parent.name
+
+        # Try different encodings commonly used by Garmin
+        encodings = ["latin-1", "iso-8859-1", "utf-8", "cp1252"]
+        df = None
+
+        for encoding in encodings:
+            try:
+                df = pd.read_csv(file, sep=";", encoding=encoding)
+                print(f"Successfully read {file} with encoding: {encoding}")
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if df is None:
+            print(f"Failed to read {file} with any encoding")
+            continue
+
+        df["source"] = "garmin"
+        df["export_date"] = export_date
+
+        # Standardize column names for later joining
+        df = df.rename(
+            columns={
+                "Activity Type": "activity_type",
+                "Date": "date",
+                "Distance": "distance_km",
+                "Calories": "calories",
+                "Time": "duration",
+                "Avg HR": "avg_heart_rate",
+                "Max HR": "max_heart_rate",
+            }
+        )
+
+        garmin_dfs.append(df)
+
+    return pd.concat(garmin_dfs, ignore_index=True) if garmin_dfs else pd.DataFrame()
+```
+
+```{python}
+# Test the function
+garmin_df = import_garmin_activities()
+print(f"Garmin activities imported: {len(garmin_df)}")
+print(f"Activity types: {garmin_df['activity_type'].unique()}")
+garmin_df.head(3)
+```
+
+### 2. Apple Health Data Import Strategy
+
+**Datenquelle**: XML-Export aus Apple Health App mit verschachtelter Struktur.
+
+**Besondere Herausforderungen**:
+  - Sehr große XML-Dateien (mehrere MB) → Memory-effizientes Parsing erforderlich
+  - Verschachtelte Datenstruktur: `<Workout>` -> `<WorkoutStatistics>` + `<MetadataEntry>`
+  - Fehlende direkte Attribute: Distance/Calories stehen in separaten Child-Elementen
+  - Viele verschiedene Metriken je nach Workout-Typ
+
+**Lösung**: Streaming XML-Parser mit gezielter Extraktion aller relevanten Daten aus drei XML-Bereichen:
+  - Workout-Attribute: Basic Info, Duration, Device
+  - WorkoutStatistics: Distance, Calories, Heart Rate, Steps, Running-Metriken
+  - MetadataEntry: Indoor/Outdoor, Weather, METs, Elevation
+
+**Zusätzliche Datenquellen identifiziert**:
+  - GPX-Dateien in workout-routes/: GPS-Punkte pro Workout mit Speed, Course, Elevation für detaillierte räumliche Analysen
+
+**Import-Strategie erfolgreich**: Separate DataFrames ermöglichen individuelle Bereinigung (LE2) und flexible Join-Strategien (LE4).
+
+```{python}
+def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
+    """
+    Extract comprehensive workout data from Apple Health XML exports
+    Includes all relevant attributes from Workout element, WorkoutStatistics and MetadataEntry
+    """
+    xml_files = glob.glob(xml_path)
+    apple_workouts = []
+
+    for xml_file in xml_files:
+        export_date = Path(xml_file).parent.name
+        print(f"Processing Apple Health file: {xml_file}")
+
+        # Parse XML efficiently for large files
+        for event, elem in etree.iterparse(xml_file, events=("start", "end")):
+            if event == "end" and elem.tag == "Workout":
+                # Base workout attributes
+                workout_data = {
+                    # Basic info
+                    "source": "apple",
+                    "export_date": export_date,
+                    "activity_type": elem.get("workoutActivityType", "").replace(
+                        "HKWorkoutActivityType", ""
+                    ),
+                    "date": elem.get("startDate", ""),
+                    "end_date": elem.get("endDate", ""),
+                    "creation_date": elem.get("creationDate", ""),
+                    # Duration
+                    "duration": elem.get("duration", ""),
+                    "duration_unit": elem.get("durationUnit", ""),
+                    # Device info
+                    "source_name": elem.get("sourceName", ""),
+                    "source_version": elem.get("sourceVersion", ""),
+                    "device": elem.get("device", ""),
+                    # Measurements (will be filled from WorkoutStatistics)
+                    "distance_km": "",
+                    "calories_active": "",
+                    "calories_basal": "",
+                    "avg_heart_rate": "",
+                    "min_heart_rate": "",
+                    "max_heart_rate": "",
+                    "steps": "",
+                    "running_stride_length": "",
+                    "running_vertical_oscillation": "",
+                    "running_ground_contact_time": "",
+                    "running_power": "",
+                    "running_speed": "",
+                    # Metadata (will be filled from MetadataEntry)
+                    "indoor_workout": "",
+                    "average_mets": "",
+                    "weather_temperature": "",
+                    "weather_humidity": "",
+                    "timezone": "",
+                    "elevation_ascended": "",
+                }
+
+                # Extract data from WorkoutStatistics child elements
+                for stats_elem in elem.findall("WorkoutStatistics"):
+                    stats_type = stats_elem.get("type", "")
+
+                    # Distance data
+                    if stats_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
+                        workout_data["distance_km"] = stats_elem.get("sum", "")
+                    elif stats_type == "HKQuantityTypeIdentifierDistanceCycling":
+                        workout_data["distance_km"] = stats_elem.get("sum", "")
+
+                    # Energy/Calories
+                    elif stats_type == "HKQuantityTypeIdentifierActiveEnergyBurned":
+                        workout_data["calories_active"] = stats_elem.get("sum", "")
+                    elif stats_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
+                        workout_data["calories_basal"] = stats_elem.get("sum", "")
+
+                    # Heart Rate
+                    elif stats_type == "HKQuantityTypeIdentifierHeartRate":
+                        workout_data["avg_heart_rate"] = stats_elem.get("average", "")
+                        workout_data["min_heart_rate"] = stats_elem.get("minimum", "")
+                        workout_data["max_heart_rate"] = stats_elem.get("maximum", "")
+
+                    # Steps
+                    elif stats_type == "HKQuantityTypeIdentifierStepCount":
+                        workout_data["steps"] = stats_elem.get("sum", "")
+
+                    # Running metrics
+                    elif stats_type == "HKQuantityTypeIdentifierRunningStrideLength":
+                        workout_data["running_stride_length"] = stats_elem.get(
+                            "average", ""
+                        )
+                    elif (
+                        stats_type
+                        == "HKQuantityTypeIdentifierRunningVerticalOscillation"
+                    ):
+                        workout_data["running_vertical_oscillation"] = stats_elem.get(
+                            "average", ""
+                        )
+                    elif (
+                        stats_type == "HKQuantityTypeIdentifierRunningGroundContactTime"
+                    ):
+                        workout_data["running_ground_contact_time"] = stats_elem.get(
+                            "average", ""
+                        )
+                    elif stats_type == "HKQuantityTypeIdentifierRunningPower":
+                        workout_data["running_power"] = stats_elem.get("average", "")
+                    elif stats_type == "HKQuantityTypeIdentifierRunningSpeed":
+                        workout_data["running_speed"] = stats_elem.get("average", "")
+
+                # Extract data from MetadataEntry child elements
+                for metadata_elem in elem.findall("MetadataEntry"):
+                    key = metadata_elem.get("key", "")
+                    value = metadata_elem.get("value", "")
+
+                    if key == "HKIndoorWorkout":
+                        workout_data["indoor_workout"] = value
+                    elif key == "HKAverageMETs":
+                        workout_data["average_mets"] = value
+                    elif key == "HKWeatherTemperature":
+                        workout_data["weather_temperature"] = value
+                    elif key == "HKWeatherHumidity":
+                        workout_data["weather_humidity"] = value
+                    elif key == "HKTimeZone":
+                        workout_data["timezone"] = value
+                    elif key == "HKElevationAscended":
+                        workout_data["elevation_ascended"] = value
+
+                # Combine total calories for compatibility with Garmin data
+                active_cal = workout_data["calories_active"]
+                basal_cal = workout_data["calories_basal"]
+
+                if active_cal and basal_cal:
+                    try:
+                        workout_data["calories"] = str(
+                            float(active_cal) + float(basal_cal)
+                        )
+                    except (ValueError, TypeError):
+                        workout_data["calories"] = active_cal  # Fallback to active only
+                else:
+                    workout_data["calories"] = (
+                        active_cal  # Use active calories if available
+                    )
+
+                apple_workouts.append(workout_data)
+                elem.clear()  # Free memory
+
+    return pd.DataFrame(apple_workouts) if apple_workouts else pd.DataFrame()
+```
+
+```{python}
+# Test the function
+apple_df = import_apple_workouts()
+print(f"Apple workouts imported: {len(apple_df)}")
+print(f"Activity types: {apple_df['activity_type'].unique()}")
+
+apple_df.head(3)
+```
 
 
 ## LE2: Bereinigen
@@ -27,5 +272,4 @@ Build a cleaned, combined, and reproducible dataset from fitness and health data
 
 
 ## LE6: Reproduzierbarkeit
-
 
