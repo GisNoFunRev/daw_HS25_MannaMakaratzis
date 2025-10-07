@@ -3,10 +3,12 @@ title: Data Wrangler
 jupyter: python3
 ---
 
+
 ```{python}
+#| ExecuteTime: {end_time: '2025-10-05T17:25:13.002477Z', start_time: '2025-10-05T17:25:12.998761Z'}
 import pandas as pd
 import numpy as np
-from lxml import etree
+from lxml import etree # lxml, da grosse dateien bei apple
 import glob
 from pathlib import Path
 from datetime import datetime
@@ -15,7 +17,42 @@ import warnings
 warnings.filterwarnings("ignore")
 ```
 
-### 1. Garmin Data Import Strategy
+## LE1: Importieren
+
+**[INTERNAL COMMENT – REMOVE BEFORE FINAL]**
+
+**KERNPROBLEME:**
+
+- Die Eigenheit unseres Wranglings erfordert andere Reihenfolge der Operationen, weil:
+    1. Import der gesamten Apple-Rohdaten technisch nicht valabel ist und darum eine Vorauswahl gemacht werden muss.
+  2. Ein Filter nach Sportart (eigentlich LE3) vor LE2 gemacht werden muss, weil sonst LE2 nicht sinnvoll ausgeführt werden kann und LE3 sinngemäss für jede zu analysierende Sportart separat erneut gemacht werden müsste.
+
+        - Der Grund dafür liegt einerseits in der unterschiedlichen Natur der einzelnen Sportarten, die an das Bereinigen (LE2) und Transformieren (LE3) jeweils unterschiedliche Anforderungen stellen. Bsp: Pace, HF-Zonen, Distanz, Dauer sind bei Running vergleichbar – bei Rad/Schwimmen wären Skalen und Verteilungen völlig anders. Entsprechend müssen z.B. Imputationen (LE2) anders berechnet werden.
+
+        - Anderseits sind die Apple Daten nicht /tidy/: Ein Frame entspricht nicht einem Kernthema/Frage, sondern erfüllt andere Funktionen.
+
+**VORSCHLÄGE:**
+
+- Idee: Ganzes DAW Projekt auf Lauftrainings ausrichten (+ Project Goal im Pitch entsprechend anpassen)
+
+- Bei Garmin ist das einfach mit activity_type==running als Filter zwischen Importfunktion in LE1 und Beginn von LE2
+
+- Bei Apple ist das komplizierter. Wir haben 2 Möglichkeiten:
+
+        1. Im XML-Parsing selber filtern: spart minimal RAM, macht aber code weniger schlank und vermischt import (LE1) und filter (LE3)
+        2. Nach dem XML-Parsing: Ablauf klarer durch Auslagerung aus der Funktion import_apple_workouts, aber vor beginn von LE2, also noch im codechunk zu LE1
+
+
+
+
+**MEINE ÄNDERUNGEN:**
+
+    - habe im APPLE-Chunk alle Zeilen die keine Abdeckung mit Garmin- Variabeln haben #inaktiviert.
+    - habe im Garmin Code nach Importfunktion nach activity_type==running gefiltert, ist einfach wieder löschbar.
+    - Vorschlag änderung für Pitch: "Wir fokussieren auf Lauftrainings, um LE2/LE3 valide, konsistent und reproduzierbar umzusetzen. Imputation, Ausreisserregeln und Aggregationen sind sportartspezifisch. Dieser Fokus erlaubt saubere Methoden und eine robuste Pipeline."
+
+
+### 1.1 Garmin Data Import Strategy
 
 Datenquelle: CSV-Export aus Garmin Connect mit strukturierten Aktivitätsdaten.
 
@@ -27,6 +64,7 @@ Besondere Herausforderungen:
 Lösung: Multi-Encoding-Parser mit automatischer Erkennung und Spalten-Standardisierung.
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-10-05T17:25:13.023398Z', start_time: '2025-10-05T17:25:13.019032Z'}
 def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
     """
     Import all Garmin CSV files and combine into single DataFrame
@@ -55,10 +93,11 @@ def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
             print(f"Failed to read {file} with any encoding")
             continue
 
-        df["source"] = "garmin"
+        df["source"] = "garmin" #harmonisierung mit apple
         df["export_date"] = export_date
 
-        # Standardize column names for later joining
+        # Standardize column names for later joining (noch Teil von LE1: Struktur angleichen, nicht Daten bereinigen)
+        # Ziel: Einheitliche Tabellenstruktur für spätere Verarbeitung in LE2–LE4
         df = df.rename(
             columns={
                 "Activity Type": "activity_type",
@@ -77,6 +116,20 @@ def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
 ```
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-10-05T17:25:22.826722Z', start_time: '2025-10-05T17:25:22.811217Z'}
+# Analysefokus definieren (Laufsport)
+
+garmin_df = import_garmin_activities()
+
+if "activity_type" in garmin_df.columns:
+    before = len(garmin_df)
+    garmin_df = garmin_df[garmin_df["activity_type"].str.lower() == "running"].copy()
+    after = len(garmin_df)
+    print(f"Scope-Filter: kept {after}/{before} rows where activity_type == 'Running'")
+```
+
+```{python}
+#| ExecuteTime: {end_time: '2025-10-05T17:25:26.426181Z', start_time: '2025-10-05T17:25:26.405098Z'}
 # Test the function
 garmin_df = import_garmin_activities()
 print(f"Garmin activities imported: {len(garmin_df)}")
@@ -84,7 +137,7 @@ print(f"Activity types: {garmin_df['activity_type'].unique()}")
 garmin_df.head(3)
 ```
 
-### 2. Apple Health Data Import Strategy
+### 1.2 Apple Health Data Import Strategy
 
 **Datenquelle**: XML-Export aus Apple Health App mit verschachtelter Struktur.
 
@@ -92,12 +145,17 @@ garmin_df.head(3)
   - Sehr große XML-Dateien (mehrere MB) → Memory-effizientes Parsing erforderlich
   - Verschachtelte Datenstruktur: `<Workout>` -> `<WorkoutStatistics>` + `<MetadataEntry>`
   - Fehlende direkte Attribute: Distance/Calories stehen in separaten Child-Elementen
-  - Viele verschiedene Metriken je nach Workout-Typ
+  - Viele verschiedene Metriken je nach Workout-Typ, aber nur wenige für spätere Analysen nötig
 
-**Lösung**: Streaming XML-Parser mit gezielter Extraktion aller relevanten Daten aus drei XML-Bereichen:
-  - Workout-Attribute: Basic Info, Duration, Device
-  - WorkoutStatistics: Distance, Calories, Heart Rate, Steps, Running-Metriken
-  - MetadataEntry: Indoor/Outdoor, Weather, METs, Elevation
+
+
+**Lösung**:
+Streaming XML-Parser mit gezielter Extraktion der relevanten Kernvariablen aus zwei XML-Bereichen:
+  - **Workout-Attribute**: `activity_type`, `date`, `duration`, `source`, `export_date`
+  - **WorkoutStatistics**: `distance_km`, `calories`, `avg_heart_rate`, `max_heart_rate`
+
+Damit wird der Import ressourcenschonend, das Schema bleibt schlank, und die Daten sind von Beginn an mit Garmin harmonisiert.
+
 
 **Zusätzliche Datenquellen identifiziert**:
   - GPX-Dateien in workout-routes/: GPS-Punkte pro Workout mit Speed, Course, Elevation für detaillierte räumliche Analysen
@@ -107,8 +165,8 @@ garmin_df.head(3)
 ```{python}
 def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
     """
-    Extract comprehensive workout data from Apple Health XML exports
-    Includes all relevant attributes from Workout element, WorkoutStatistics and MetadataEntry
+    Import Apple Health workouts keeping only Garmin-compatible core variables.
+    All Apple-specific extras are commented out for easy reactivation.
     """
     xml_files = glob.glob(xml_path)
     apple_workouts = []
@@ -117,134 +175,93 @@ def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
         export_date = Path(xml_file).parent.name
         print(f"Processing Apple Health file: {xml_file}")
 
-        # Parse XML efficiently for large files
         for event, elem in etree.iterparse(xml_file, events=("start", "end")):
             if event == "end" and elem.tag == "Workout":
-                # Base workout attributes
+                # --- Workout-Attribute ---
                 workout_data = {
-                    # Basic info
+                    # Basic info (keep)
                     "source": "apple",
                     "export_date": export_date,
-                    "activity_type": elem.get("workoutActivityType", "").replace(
-                        "HKWorkoutActivityType", ""
-                    ),
+                    "activity_type": elem.get("workoutActivityType", "").replace("HKWorkoutActivityType", ""),
                     "date": elem.get("startDate", ""),
-                    "end_date": elem.get("endDate", ""),
-                    "creation_date": elem.get("creationDate", ""),
-                    # Duration
+
+                    # Duration (keep; convert to seconds in LE2)
                     "duration": elem.get("duration", ""),
-                    "duration_unit": elem.get("durationUnit", ""),
-                    # Device info
-                    "source_name": elem.get("sourceName", ""),
-                    "source_version": elem.get("sourceVersion", ""),
-                    "device": elem.get("device", ""),
-                    # Measurements (will be filled from WorkoutStatistics)
+
+                    # --- commented out (not in Garmin schema) ---
+                    # "end_date": elem.get("endDate", ""),
+                    # "creation_date": elem.get("creationDate", ""),
+                    # "duration_unit": elem.get("durationUnit", ""),
+                    # "source_name": elem.get("sourceName", ""),
+                    # "source_version": elem.get("sourceVersion", ""),
+                    # "device": elem.get("device", ""),
+
+                    # Initialize Garmin-core measurements
                     "distance_km": "",
-                    "calories_active": "",
-                    "calories_basal": "",
+                    "calories": "",          # will be set from ActiveEnergyBurned
                     "avg_heart_rate": "",
-                    "min_heart_rate": "",
                     "max_heart_rate": "",
-                    "steps": "",
-                    "running_stride_length": "",
-                    "running_vertical_oscillation": "",
-                    "running_ground_contact_time": "",
-                    "running_power": "",
-                    "running_speed": "",
-                    # Metadata (will be filled from MetadataEntry)
-                    "indoor_workout": "",
-                    "average_mets": "",
-                    "weather_temperature": "",
-                    "weather_humidity": "",
-                    "timezone": "",
-                    "elevation_ascended": "",
+
+                    # --- commented out Apple-only metrics ---
+                    # "min_heart_rate": "",
+                    # "steps": "",
+                    # "running_stride_length": "",
+                    # "running_vertical_oscillation": "",
+                    # "running_ground_contact_time": "",
+                    # "running_power": "",
+                    # "running_speed": "",
+                    # "indoor_workout": "",
+                    # "average_mets": "",
+                    # "weather_temperature": "",
+                    # "weather_humidity": "",
+                    # "timezone": "",
+                    # "elevation_ascended": "",
                 }
 
-                # Extract data from WorkoutStatistics child elements
+                # --- WorkoutStatistics ---
                 for stats_elem in elem.findall("WorkoutStatistics"):
                     stats_type = stats_elem.get("type", "")
 
-                    # Distance data
-                    if stats_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
-                        workout_data["distance_km"] = stats_elem.get("sum", "")
-                    elif stats_type == "HKQuantityTypeIdentifierDistanceCycling":
+                    # Distance (keep)
+                    if stats_type in (
+                        "HKQuantityTypeIdentifierDistanceWalkingRunning",
+                        "HKQuantityTypeIdentifierDistanceCycling",
+                    ):
                         workout_data["distance_km"] = stats_elem.get("sum", "")
 
-                    # Energy/Calories
+                    # Calories (keep) -> set directly from ActiveEnergyBurned (Garmin-style)
                     elif stats_type == "HKQuantityTypeIdentifierActiveEnergyBurned":
-                        workout_data["calories_active"] = stats_elem.get("sum", "")
-                    elif stats_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
-                        workout_data["calories_basal"] = stats_elem.get("sum", "")
+                        workout_data["calories"] = stats_elem.get("sum", "")
 
-                    # Heart Rate
+                    # Heart Rate (keep: avg/max)
                     elif stats_type == "HKQuantityTypeIdentifierHeartRate":
                         workout_data["avg_heart_rate"] = stats_elem.get("average", "")
-                        workout_data["min_heart_rate"] = stats_elem.get("minimum", "")
                         workout_data["max_heart_rate"] = stats_elem.get("maximum", "")
 
-                    # Steps
-                    elif stats_type == "HKQuantityTypeIdentifierStepCount":
-                        workout_data["steps"] = stats_elem.get("sum", "")
+                    # --- commented out (Apple-only) ---
+                    # elif stats_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
+                    #     pass  # we don't keep basal in LE1
+                    # elif stats_type == "HKQuantityTypeIdentifierStepCount":
+                    #     pass
+                    # elif stats_type == "HKQuantityTypeIdentifierRunningStrideLength":
+                    #     pass
+                    # elif stats_type == "HKQuantityTypeIdentifierRunningVerticalOscillation":
+                    #     pass
+                    # elif stats_type == "HKQuantityTypeIdentifierRunningGroundContactTime":
+                    #     pass
+                    # elif stats_type == "HKQuantityTypeIdentifierRunningPower":
+                    #     pass
+                    # elif stats_type == "HKQuantityTypeIdentifierRunningSpeed":
+                    #     pass
 
-                    # Running metrics
-                    elif stats_type == "HKQuantityTypeIdentifierRunningStrideLength":
-                        workout_data["running_stride_length"] = stats_elem.get(
-                            "average", ""
-                        )
-                    elif (
-                        stats_type
-                        == "HKQuantityTypeIdentifierRunningVerticalOscillation"
-                    ):
-                        workout_data["running_vertical_oscillation"] = stats_elem.get(
-                            "average", ""
-                        )
-                    elif (
-                        stats_type == "HKQuantityTypeIdentifierRunningGroundContactTime"
-                    ):
-                        workout_data["running_ground_contact_time"] = stats_elem.get(
-                            "average", ""
-                        )
-                    elif stats_type == "HKQuantityTypeIdentifierRunningPower":
-                        workout_data["running_power"] = stats_elem.get("average", "")
-                    elif stats_type == "HKQuantityTypeIdentifierRunningSpeed":
-                        workout_data["running_speed"] = stats_elem.get("average", "")
-
-                # Extract data from MetadataEntry child elements
-                for metadata_elem in elem.findall("MetadataEntry"):
-                    key = metadata_elem.get("key", "")
-                    value = metadata_elem.get("value", "")
-
-                    if key == "HKIndoorWorkout":
-                        workout_data["indoor_workout"] = value
-                    elif key == "HKAverageMETs":
-                        workout_data["average_mets"] = value
-                    elif key == "HKWeatherTemperature":
-                        workout_data["weather_temperature"] = value
-                    elif key == "HKWeatherHumidity":
-                        workout_data["weather_humidity"] = value
-                    elif key == "HKTimeZone":
-                        workout_data["timezone"] = value
-                    elif key == "HKElevationAscended":
-                        workout_data["elevation_ascended"] = value
-
-                # Combine total calories for compatibility with Garmin data
-                active_cal = workout_data["calories_active"]
-                basal_cal = workout_data["calories_basal"]
-
-                if active_cal and basal_cal:
-                    try:
-                        workout_data["calories"] = str(
-                            float(active_cal) + float(basal_cal)
-                        )
-                    except (ValueError, TypeError):
-                        workout_data["calories"] = active_cal  # Fallback to active only
-                else:
-                    workout_data["calories"] = (
-                        active_cal  # Use active calories if available
-                    )
+                # --- MetadataEntry (all commented out in LE1) ---
+                # for metadata_elem in elem.findall("MetadataEntry"):
+                #     key = metadata_elem.get("key", "")
+                #     value = metadata_elem.get("value", "")
+                #     # Not needed for Garmin schema in LE1
 
                 apple_workouts.append(workout_data)
-                elem.clear()  # Free memory
+                elem.clear()
 
     return pd.DataFrame(apple_workouts) if apple_workouts else pd.DataFrame()
 ```
@@ -256,19 +273,57 @@ print(f"Apple workouts imported: {len(apple_df)}")
 print(f"Activity types: {apple_df['activity_type'].unique()}")
 
 apple_df.head(3)
+
 ```
 
-
 ## LE2: Bereinigen
+
+
+**Ziel**:
+- Rohdaten beider Quellen so bereinigen, dass sie für statistische Auswertung geeignet sind.
+- Da Garmin- und Apple-Daten unterschiedliche Strukturen und Umfang haben, erfolgt die Bereinigung **pro Quelle**, aber auf einem **gemeinsamen harmonisierten Schema**.
+
+**Vorgehen**:
+
+1. **Schema-Harmonisierung**
+   - Beide Quellen werden auf eine gemeinsame Schnittmenge reduziert:
+
+     `date`, `activity_type`, `distance_km`, `duration_sec`, `calories`, `avg_heart_rate`, `max_heart_rate`, `source`, `export_date`.
+   - Einheitliche Typisierung (Datetime, Float, Category) und Normalisierung der Einheiten (z. B. Meter → Kilometer, Dauer → Sekunden).
+
+2. **Bereinigung pro Quelle (Garmin / Apple)**
+   - **Fehlerhafte oder unplausible Werte** erkennen und behandeln (z. B. negative Distanzen, unrealistische Herzfrequenzen).
+   - **Duplikate** anhand von Quelle, Aktivität, Zeit und Distanz entfernen.
+   - **Fehlende Werte** je Variable nach festen Regeln imputieren oder droppen (z. B. keine Imputation bei Distanz oder Dauer).
+   - **Ausreisser** mithilfe der IQR-Methode identifizieren und wahlweise entfernen oder winsorisieren.
+   - **Kategorische Variablen** vereinheitlichen (z. B. „Run“ → „Running“).
+
+3. **Qualitätsprüfung & Reflexion**
+   - Vergleich der deskriptiven Statistiken **vor und nach** der Bereinigung.
+   - Dokumentation, wie sich Bereinigungsschritte auf Mittelwerte, Varianzen und Korrelationen auswirken.
+   - Separate Reports pro Quelle, um Nachvollziehbarkeit und Reproduzierbarkeit sicherzustellen.
+
+**Ergebnis**:
+Zwei saubere, konsistent strukturierte DataFrames (`garmin_clean`, `apple_clean`).
+
+### 2.1 Garmin Data Cleaning Strategy
+
+
 
 
 ## LE3: Transformieren
 
 
+
+
 ## LE4: Verknüpfen
 
 
+
+
 ## LE5: Datenpipelines
+
+
 
 
 ## LE6: Reproduzierbarkeit
