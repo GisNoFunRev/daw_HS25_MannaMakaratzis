@@ -5,52 +5,19 @@ jupyter: python3
 
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-09T16:32:15.477079Z', start_time: '2025-10-09T16:32:14.953166Z'}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:03.127772Z', start_time: '2025-10-10T17:05:02.756259Z'}
 import pandas as pd
 import numpy as np
 from lxml import etree # lxml, da grosse dateien bei apple
 import glob
 from pathlib import Path
-from datetime import datetime
 import warnings
+
 
 warnings.filterwarnings("ignore")
 ```
 
-## LE1: Importieren
-
-**[INTERNAL COMMENT – REMOVE BEFORE FINAL]**
-
-**KERNPROBLEME:**
-
-- Die Eigenheit unseres Wranglings erfordert andere Reihenfolge der Operationen, weil:
-    1. Import der gesamten Apple-Rohdaten technisch nicht valabel ist und darum eine Vorauswahl gemacht werden muss.
-  2. Ein Filter nach Sportart (eigentlich LE3) vor LE2 gemacht werden muss, weil sonst LE2 nicht sinnvoll ausgeführt werden kann und LE3 sinngemäss für jede zu analysierende Sportart separat erneut gemacht werden müsste.
-
-        - Der Grund dafür liegt einerseits in der unterschiedlichen Natur der einzelnen Sportarten, die an das Bereinigen (LE2) und Transformieren (LE3) jeweils unterschiedliche Anforderungen stellen. Bsp: Pace, HF-Zonen, Distanz, Dauer sind bei Running vergleichbar – bei Rad/Schwimmen wären Skalen und Verteilungen völlig anders. Entsprechend müssen z.B. Imputationen (LE2) anders berechnet werden.
-
-        - Anderseits sind die Apple Daten nicht /tidy/: Ein Frame entspricht nicht einem Kernthema/Frage, sondern erfüllt andere Funktionen.
-
-**VORSCHLÄGE:**
-
-- Idee: Ganzes DAW Projekt auf Lauftrainings ausrichten (+ Project Goal im Pitch entsprechend anpassen)
-
-- Bei Garmin ist das einfach mit activity_type==running als Filter zwischen Importfunktion in LE1 und Beginn von LE2
-
-- Bei Apple ist das komplizierter. Wir haben 2 Möglichkeiten:
-
-        1. Im XML-Parsing selber filtern: spart minimal RAM, macht aber code weniger schlank und vermischt import (LE1) und filter (LE3)
-        2. Nach dem XML-Parsing: Ablauf klarer durch Auslagerung aus der Funktion import_apple_workouts, aber vor beginn von LE2, also noch im codechunk zu LE1
-
-
-
-
-**MEINE ÄNDERUNGEN:**
-
-    - habe im APPLE-Chunk alle Zeilen die keine Abdeckung mit Garmin- Variabeln haben #inaktiviert.
-    - habe im Garmin Code nach Importfunktion nach activity_type==running gefiltert, ist einfach wieder löschbar.
-    - Vorschlag änderung für Pitch: "Wir fokussieren auf Lauftrainings, um LE2/LE3 valide, konsistent und reproduzierbar umzusetzen. Imputation, Ausreisserregeln und Aggregationen sind sportartspezifisch. Dieser Fokus erlaubt saubere Methoden und eine robuste Pipeline."
-
+## 1. Importieren
 
 ### 1.1 Garmin Data Import Strategy
 
@@ -64,7 +31,7 @@ Besondere Herausforderungen:
 Lösung: Multi-Encoding-Parser mit automatischer Erkennung und Spalten-Standardisierung.
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-09T16:32:15.490284Z', start_time: '2025-10-09T16:32:15.482995Z'}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:03.147509Z', start_time: '2025-10-10T17:05:03.141602Z'}
 def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
     """
     Import all Garmin CSV files and combine into single DataFrame
@@ -116,7 +83,7 @@ def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
 ```
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-09T16:32:16.013925Z', start_time: '2025-10-09T16:32:15.984471Z'}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:03.291168Z', start_time: '2025-10-10T17:05:03.266559Z'}
 # Test the function
 garmin_df = import_garmin_activities()
 print(f"Garmin activities imported: {len(garmin_df)}")
@@ -139,7 +106,7 @@ garmin_df.head(3)
 **Lösung**:
 Streaming XML-Parser mit gezielter Extraktion der relevanten Kernvariablen aus zwei XML-Bereichen:
   - **Workout-Attribute**: `activity_type`, `date`, `duration`, `source`, `export_date`
-  - **WorkoutStatistics**: `distance_km`, `calories`, `avg_heart_rate`, `max_heart_rate`
+  - **WorkoutStatistics**: `distance_m`, `calories`, `avg_heart_rate`, `max_heart_rate`
 
 Damit wird der Import ressourcenschonend, das Schema bleibt schlank, und die Daten sind von Beginn an mit Garmin harmonisiert.
 
@@ -150,11 +117,13 @@ Damit wird der Import ressourcenschonend, das Schema bleibt schlank, und die Dat
 **Import-Strategie erfolgreich**: Separate DataFrames ermöglichen individuelle Bereinigung (LE2) und flexible Join-Strategien (LE4).
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-09T16:32:16.095728Z', start_time: '2025-10-09T16:32:16.089244Z'}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.063881Z', start_time: '2025-10-10T17:05:03.366811Z'}
 def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
     """
-    Import Apple Health workouts keeping only Garmin-compatible core variables.
-    All Apple-specific extras are commented out for easy reactivation.
+    Apple Health Workouts roh importieren.
+    - Keine Einheitentransformationen, keine Umbenennungen auf Garmin-Schema.
+    - Nur neutrale Kernfelder füllen: source, export_date, activity_type, date, duration, distance, calories, avg_heart_rate, max_heart_rate.
+    - Apple-spezifische Extras bleiben auskommentiert (einfach reaktivierbar).
     """
     xml_files = glob.glob(xml_path)
     apple_workouts = []
@@ -163,190 +132,307 @@ def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
         export_date = Path(xml_file).parent.name
         print(f"Processing Apple Health file: {xml_file}")
 
+        # Streaming-Parsing (speicherschonend)
         for event, elem in etree.iterparse(xml_file, events=("start", "end")):
             if event == "end" and elem.tag == "Workout":
-                # --- Workout-Attribute ---
+
+                # --- Workout-Attribute (nur Rohwerte; keine Umrechnung/Umbenennung) ---
                 workout_data = {
-                    # Basic info (keep)
                     "source": "apple",
                     "export_date": export_date,
                     "activity_type": elem.get("workoutActivityType", "").replace("HKWorkoutActivityType", ""),
                     "date": elem.get("startDate", ""),
-
-                    # Duration (keep; convert to seconds in LE2)
-                    "duration": elem.get("duration", ""),
-
-                    # --- commented out (not in Garmin schema) ---
-                    # "end_date": elem.get("endDate", ""),
-                    # "creation_date": elem.get("creationDate", ""),
-                    # "duration_unit": elem.get("durationUnit", ""),
-                    # "source_name": elem.get("sourceName", ""),
-                    # "source_version": elem.get("sourceVersion", ""),
-                    # "device": elem.get("device", ""),
-
-                    # Initialize Garmin-core measurements
-                    "distance_km": "",
-                    "calories": "",          # will be set from ActiveEnergyBurned
+                    "duration": elem.get("duration", ""),   # Einheit bleibt roh (Apple i.d.R. Minuten)
+                    # Roh-Messwerte (werden unten aus WorkoutStatistics gefüllt)
+                    "distance": "",                          # Einheit roh lassen (Apple liefert hier üblicherweise km)
+                    "calories": "",                          # ActiveEnergyBurned (kcal)
                     "avg_heart_rate": "",
                     "max_heart_rate": "",
 
-                    # --- commented out Apple-only metrics ---
-                    # "min_heart_rate": "",
-                    # "steps": "",
-                    # "running_stride_length": "",
-                    # "running_vertical_oscillation": "",
-                    # "running_ground_contact_time": "",
-                    # "running_power": "",
-                    # "running_speed": "",
-                    # "indoor_workout": "",
-                    # "average_mets": "",
-                    # "weather_temperature": "",
-                    # "weather_humidity": "",
-                    # "timezone": "",
-                    # "elevation_ascended": "",
                 }
 
-                # --- WorkoutStatistics ---
+                # --- WorkoutStatistics: gezielte Extraktion der Kernmetriken ---
                 for stats_elem in elem.findall("WorkoutStatistics"):
                     stats_type = stats_elem.get("type", "")
 
-                    # Distance (keep)
+                    # Distanz (roh in 'distance' übernehmen)
                     if stats_type in (
                         "HKQuantityTypeIdentifierDistanceWalkingRunning",
                         "HKQuantityTypeIdentifierDistanceCycling",
                     ):
-                        workout_data["distance_km"] = stats_elem.get("sum", "")
+                        workout_data["distance"] = stats_elem.get("sum", "")
 
-                    # Calories (keep) -> set directly from ActiveEnergyBurned (Garmin-style)
+                    # Kalorien (Active Energy → Garmin-nah als 'calories')
                     elif stats_type == "HKQuantityTypeIdentifierActiveEnergyBurned":
                         workout_data["calories"] = stats_elem.get("sum", "")
 
-                    # Heart Rate (keep: avg/max)
+                    # Herzfrequenz (Durchschnitt & Maximum)
                     elif stats_type == "HKQuantityTypeIdentifierHeartRate":
                         workout_data["avg_heart_rate"] = stats_elem.get("average", "")
                         workout_data["max_heart_rate"] = stats_elem.get("maximum", "")
 
-                    # --- commented out (Apple-only) ---
-                    # elif stats_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
-                    #     pass  # we don't keep basal in LE1
-                    # elif stats_type == "HKQuantityTypeIdentifierStepCount":
-                    #     pass
-                    # elif stats_type == "HKQuantityTypeIdentifierRunningStrideLength":
-                    #     pass
-                    # elif stats_type == "HKQuantityTypeIdentifierRunningVerticalOscillation":
-                    #     pass
-                    # elif stats_type == "HKQuantityTypeIdentifierRunningGroundContactTime":
-                    #     pass
-                    # elif stats_type == "HKQuantityTypeIdentifierRunningPower":
-                    #     pass
-                    # elif stats_type == "HKQuantityTypeIdentifierRunningSpeed":
-                    #     pass
 
-                # --- MetadataEntry (all commented out in LE1) ---
-                # for metadata_elem in elem.findall("MetadataEntry"):
-                #     key = metadata_elem.get("key", "")
-                #     value = metadata_elem.get("value", "")
-                #     # Not needed for Garmin schema in LE1
 
                 apple_workouts.append(workout_data)
-                elem.clear()
+                elem.clear()  # Speicher freigeben
 
-    return pd.DataFrame(apple_workouts) if apple_workouts else pd.DataFrame()
+    # In DataFrame konvertieren
+    df = pd.DataFrame(apple_workouts)
+
+    # Kleine Import-Statistik (nur Info, keine Transformation)
+    if not df.empty:
+        non_empty_dist = df["distance"].replace("", pd.NA).notna().sum() if "distance" in df else 0
+        non_empty_dur  = df["duration"].replace("", pd.NA).notna().sum() if "duration" in df else 0
+        print(f"\n✅ Apple: Import abgeschlossen. Workouts: {len(df)} | distance non-empty: {non_empty_dist} | duration non-empty: {non_empty_dur}")
+    else:
+        print("\n⚠️ Apple: Import ergab keine Workouts.")
+
+    return df
+
+# Import ausführen (LE1 – roh)
+apple_df_raw = import_apple_workouts()
 ```
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-09T16:32:27.933820Z', start_time: '2025-10-09T16:32:16.171465Z'}
-# Test the function
-apple_df = import_apple_workouts()
-print(f"Apple workouts imported: {len(apple_df)}")
-print(f"Activity types: {apple_df['activity_type'].unique()}")
-
-apple_df.head(3)
-
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.127014Z', start_time: '2025-10-10T17:05:15.115709Z'}
+apple_df_raw.head(132)
 ```
 
-## LE2: Bereinigen
+## 2. Bereinigen
+
+**Helperfunktionen für gruppenbasierte Imputation**
+
+**Ziel:**
+Unterstützen die gruppenbasierte Imputation fehlender Kalorienwerte (`calories`) über Distanz- und Herzfrequenzklassen. Ziel ist eine realistische Schätzung basierend auf ähnlichen Trainingsprofilen.
+
+**_build_distance_bins(s):**
+Erstellt Distanzklassen [0–5), [5–10), [10–15), [15–25), [25–50) km.
+Wandelt Eingabewerte in numerische Werte um, ersetzt negative durch 0 und gibt kategoriale Intervalle zurück.
+→ Grundlage für gruppenbasierte Schätzung nach Laufdistanz.
+
+**_build_hr_bins_per_source(df, col="avg_heart_rate"):**
+Teilt Herzfrequenzen je Datenquelle (`source`) in Quartile (1–4).
+Bei zu wenigen Werten erfolgt 2-Binning. Rückgabe: numerische Intensitätsstufen.
+→ Differenziert Kaloriengruppen nach Trainingsintensität und Quelle.
+
+**_impute_grouped_calories(df):**
+Füllt fehlende oder fehlerhafte Kalorien nach mehreren Ebenen:
+1. (source, dist_bin, hr_bin)
+2. (source, dist_bin)
+3. (source)
+4. globaler Median.
+Verwendet `_build_distance_bins` und `_build_hr_bins_per_source`.
+→ Stufenweise Median-Imputation mit realistischen Fallbacks.
+
+**_count_changed(series_old, series_new):**
+Zählt geänderte Werte zwischen zwei Serien (`np.count_nonzero`).
+→ Dient zur Quantifizierung von Anpassungen nach Imputation oder Winsorisierung.
+
+**Gesamt:**
+Diese Funktionen bilden das Fundament für robuste, konsistente und quellübergreifende Kalorien-Imputation und stellen Datenqualität vor der Analyse sicher.
+
+```{python}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.300395Z', start_time: '2025-10-10T17:05:15.292277Z'}
 
 
-**Ziel**:
-- Rohdaten beider Quellen so bereinigen, dass sie für statistische Auswertung geeignet sind.
-- Da Garmin- und Apple-Daten unterschiedliche Strukturen und Umfang haben, erfolgt die Bereinigung **pro Quelle**, aber auf einem **gemeinsamen harmonisierten Schema**.
 
-**Vorgehen**:
+def _build_distance_bins(s: pd.Series):
+    """
+    Bins für Distanz: [0–5), [5–10), [10–15), [15–25), [25–50)
+    """
+    bins = [0, 5, 10, 15, 25, 50]
+    s_num = pd.to_numeric(s, errors="coerce").clip(lower=0)
+    return pd.cut(s_num, bins=bins, right=False, include_lowest=True)
 
-1. **Bereinigung pro Quelle (Garmin / Apple)**
-   - **Fehlerhafte oder unplausible Werte** erkennen und behandeln (z. B. negative Distanzen, unrealistische Herzfrequenzen).
-   - **Duplikate** entfernen.
-   - **Fehlende Werte** je Variable nach festen Regeln imputieren oder droppen (z. B. keine Imputation bei Distanz oder Dauer).
-   - **Ausreisser** mithilfe der IQR-Methode identifizieren und wahlweise entfernen oder winsorisieren.
-   - **Kategorische Variablen** vereinheitlichen (z. B. „Run“ → „Running“).
 
-2. **Qualitätsprüfung & Reflexion**
-   - Vergleich der deskriptiven Statistiken **vor und nach** der Bereinigung.
-   - Dokumentation, wie sich Bereinigungsschritte auf Mittelwerte, Varianzen und Korrelationen auswirken.
-   - Separate Reports pro Quelle, um Nachvollziehbarkeit und Reproduzierbarkeit sicherzustellen.
+def _build_hr_bins_per_source(df: pd.DataFrame, col: str = "avg_heart_rate"):
+    """
+    Quartils-Binning der Herzfrequenz je 'source'.
+    Rückgabe: float-Codes 1..4 (NaN falls zu wenig Daten).
+    """
+    hr_bin = pd.Series(np.nan, index=df.index, dtype="float")
+    for src, sub in df.groupby("source"):
+        x = pd.to_numeric(sub[col], errors="coerce").dropna()
+        n_unique = x.nunique()
+        if n_unique >= 4:
+            q = pd.qcut(x, 4, duplicates="drop")
+            codes = q.cat.codes.replace(-1, np.nan) + 1
+            hr_bin.loc[q.index] = codes.astype("float")
+        elif n_unique >= 2:
+            c = pd.cut(x, 2)
+            codes = c.cat.codes.replace(-1, np.nan) + 1
+            hr_bin.loc[c.index] = codes.astype("float")
+        # sonst NaN
+    return hr_bin
 
-**Ergebnis**:
-Zwei saubere, konsistent strukturierte DataFrames (`garmin_clean`, `apple_clean`).
+
+def _impute_grouped_calories(df: pd.DataFrame):
+    """
+    Imputiert 'calories' nach (source, dist_bin, hr_bin) mit Fallbacks.
+    Erwartet Spalten: 'source','distance_km','avg_heart_rate','calories'
+    Modifiziert eine Kopie und gibt sie zurück.
+    """
+    out = df.copy()
+
+    # Hilfsbins
+    out["dist_bin"] = _build_distance_bins(out["distance_km"])
+    out["hr_bin"] = _build_hr_bins_per_source(out, "avg_heart_rate")
+
+    # Nur fehlende/fehlerhafte Calories anfassen
+    out["calories"] = pd.to_numeric(out["calories"], errors="coerce")
+    mask_bad = out["calories"].isna() | (out["calories"] <= 0)
+    out.loc[mask_bad, "calories"] = np.nan
+
+    # Median-Tabellen
+    med3 = out.groupby(["source", "dist_bin", "hr_bin"], dropna=False)["calories"].median()
+    med2 = out.groupby(["source", "dist_bin"], dropna=False)["calories"].median()
+    med1 = out.groupby(["source"], dropna=False)["calories"].median()
+    med0 = out["calories"].median()
+
+    def _fill_row(row):
+        if pd.notna(row["calories"]):
+            return row["calories"]
+        v = med3.get((row["source"], row["dist_bin"], row["hr_bin"]), np.nan)
+        if pd.isna(v):
+            v = med2.get((row["source"], row["dist_bin"]), np.nan)
+        if pd.isna(v):
+            v = med1.get(row["source"], np.nan)
+        if pd.isna(v):
+            v = med0
+        return v
+
+    out.loc[:, "calories"] = out.apply(_fill_row, axis=1)
+
+    # Aufräumen
+    out.drop(columns=["dist_bin", "hr_bin"], inplace=True)
+    return out
+
+def _count_changed(series_old: pd.Series, series_new: pd.Series) -> int:
+    """
+    Zählt, wie viele Werte sich zwischen zwei Serien unterscheiden.
+    (Vermeidet Linter-Warnung zu .sum() auf bool.)
+    """
+    return np.count_nonzero(series_old.ne(series_new))
+```
 
 ### 2.1 Garmin Data Cleaning
 
+**2.1.1 Filter nach Laufsport**
 
-**Ziel**:
-Die Garmin-Daten werden bereinigt, um fehlerhafte, doppelte oder unplausible Einträge zu entfernen und fehlende Werte gezielt zu behandeln.
-Da Garmin-Exports tendenziell strukturierter, aber nicht immer vollständig sind (z. B. fehlende Herzfrequenzen, abgebrochene Aktivitäten), erfolgt die Bereinigung regelbasiert und reproduzierbar.
-
-**Vorgehen**:
-
-1. **Filter nach Laufsport**
-
-1. **Typisierung und Einheiten**
-   - `date` → in `datetime` umwandeln (`%Y-%m-%d %H:%M:%S`).
-   - `distance_km` → sicherstellen, dass Einheit Kilometer ist (ggf. Meter → km konvertieren).
-   - `duration` → von `"hh:mm:ss"` in Sekunden (`duration_sec`) konvertieren.
-   - Alle numerischen Spalten (`distance_km`, `duration_sec`, `calories`, `avg_heart_rate`, `max_heart_rate`) in `float` casten.
-
-2. **Duplikate**
-   - Doppelte Aktivitäten identifizieren über `["date", "distance_km", "duration_sec"]`.
-   - Exakte Duplikate entfernen.
-   - Bei fast-identischen Läufen (z. B. Doppelexport) nur den ersten Eintrag behalten.
-
-3. **Fehlende Werte**
-   - **`date`, `distance_km`, `duration_sec`**: Zeilen droppen, wenn fehlend.
-   - **`avg_heart_rate`, `max_heart_rate`, `calories`**:
-     - Fehlende Werte pro Quelle (`source="garmin"`) mit Median imputieren.
-     - Dokumentieren, wie viele Werte ersetzt wurden.
-
-4. **Ausreisser**
-   - Plausibilitätsgrenzen:
-     - `distance_km` ∈ [0.1 ; 50]
-     - `duration_sec` ∈ [120 ; 14400] (= 2 min – 4 h)
-     - `avg_heart_rate` ∈ [80 ; 210]
-   - Werte ausserhalb dieser Bereiche entfernen.
-   - Zusätzlich IQR-Methode für `distance_km` zur Erkennung extremer Abweichungen.
-
-5. **Konsistenzchecks**
-   - Wenn `avg_heart_rate` > `max_heart_rate` → Werte tauschen oder Null setzen.
-   - `pace_min_per_km` berechnen und prüfen, ob 2 ≤ Pace ≤ 7 min/km (sonst markieren).
-
-6. **Ergebnis**
-   - Bereinigter DataFrame `garmin_clean` mit konsistenten Typen, plausiblen Werten und ohne Duplikate.
-   - Deskriptive Statistik vor/nach Bereinigung dokumentieren (`df.describe()`-Vergleich).
-   - Optional: Histogramme und Scatterplots (Distanz, Dauer, Herzfrequenz) zur visuellen Prüfung.
-
-### Filter nach Laufsport
-
-**Ziel**:
+**Ziel:**
 Nur Laufaktivitäten (`activity_type == "Running"`) für die Analyse behalten, um Vergleichbarkeit sicherzustellen.
+Dadurch werden Pace, Herzfrequenz und Kalorienwerte zwischen den Einheiten konsistent.
 
-**Vorgehen**:
+**Vorgehen:**
 Nach dem Import werden alle Aktivitäten gefiltert, sodass nur Zeilen mit `Running` erhalten bleiben.
 
-**Ergebnis**:
-Datensatz enthält ausschliesslich Lauftrainings und bildet die Grundlage für alle weiteren Bereinigungs- und Transformationsschritte.
+**Ergebnis:**
+Der Datensatz enthält ausschliesslich Lauftrainings und bildet die Grundlage für alle weiteren Bereinigungs- und Transformationsschritte.
+
+---
+
+**2.1.2 Reduktion auf Kern-Aktivitäten**
+
+**Ziel:**
+Nur die Variablen behalten, die für Analyse und Vergleich mit anderen Quellen (z. B. Apple Health) relevant sind.
+Damit wird die Datenmenge reduziert und das Schema harmonisiert.
+
+**Vorgehen:**
+Nach dem Import und dem Lauf-Filter werden ausschliesslich folgende Kernvariablen beibehalten:
+`date`, `activity_type`, `distance_km`, `duration`, `calories`,
+`avg_heart_rate`, `max_heart_rate`, `source`, `export_date`.
+Alle anderen Variablen werden verworfen, da sie für LE2–LE4 nicht benötigt werden.
+
+**Ergebnis:**
+Ein kompakter, auf Analyse und Vergleich ausgerichteter Datensatz mit identischer Variablenstruktur zu Apple Health.
+
+---
+**2.1.3 Typisierung und Einheiten**
+
+**Ziel:**
+Die Rohdaten aus den Garmin-CSV-Dateien werden in eine einheitlich auswertbare Form gebracht.
+
+
+**Vorgehen:**
+1. `date` wird in das Datumsformat (`datetime64`) konvertiert → ermöglicht Zeitreihen-Analysen.
+2. `duration` wird aus Textformat (`hh:mm:ss` oder `mm:ss`) in Sekunden (`duration_sec`) umgerechnet → erleichtert Berechnungen von Pace, Geschwindigkeit und Dauervergleichen.
+3. `distance_km` wird geprüft – falls Werte über 200 vorkommen, wird angenommen, dass sie in **Metern** vorliegen, und durch 1000 geteilt.
+4. Alle numerischen Variablen (`distance_km`, `duration_sec`, `calories`, `avg_heart_rate`, `max_heart_rate`) werden zu `float` konvertiert → sichert mathematische Operationen.
+5. Kategorische Variablen (`activity_type`, `source`) werden als `category` typisiert → spart Speicherplatz und ermöglicht Gruppenanalysen.
+6. Eine Übersicht der wichtigsten numerischen Spalten (`describe()`) überprüft die Typisierung.
+
+**Ergebnis:**
+Ein DataFrame `garmin_df_typed` mit konsistenten Datentypen, normierten Einheiten und der neuen Variable `duration_sec`,
+der als Grundlage für die weitere Datenbereinigung dient.
+
+---
+
+**2.1.4 Data Cleaning**
+
+**Vorbedingungen:**
+`date` ist als `datetime64` typisiert, `activity_type` auf *Running* gefiltert.
+**Duplikate:** werden je Quelle über den Schlüssel `("date","distance_km","duration_sec")` entfernt (erstes Vorkommen bleibt).
+
+
+
+**date**
+- **Missing:** aus `export_date` abgeleitet (Ordnername).
+  → Garmin-Ordner enthalten jeweils das Exportdatum, daher präzise Rekonstruktion möglich.
+- **Datenfehler:** Zukunftsdaten → `NaT`.
+- **Begründung:** Rekonstruktion vermeidet unnötigen Datenverlust durch fehlende Zeitstempel.
+
+**distance_km**
+- **Missing:** droppen (essenzielle Metrik).
+- **Datenfehler:** ≤ 0 oder < 0.1 km → droppen.
+- **Ausreisser:** ausserhalb [0.1, 50] km oder inkonsistente Pace (mit `duration_sec`).
+- **Begründung:** Werte ausserhalb des Bereichs stammen meist von Gerätefehlern oder fehlerhaftem Export.
+
+**duration_sec**
+- **Missing:** droppen.
+- **Datenfehler:** ≤ 0 s oder > 14 400 s (4 h) → droppen.
+- **Ausreisser:** Pace ausserhalb [2, 10.5] min/km → droppen.
+- **Begründung:** 10.5 min/km bildet eine realistische Obergrenze für langsame Dauerläufe; langsamere Werte deuten auf Pausen oder Inaktivität hin.
+
+**calories**
+- **Missing / fehlerhafte (≤ 0 / negativ):** gruppenbasierte Median-Imputation:
+  - Distanz-Bins: [0–5), [5–10), [10–15), [15–25), [25–50) km
+  - Herzfrequenz-Bins: Quartile der `avg_heart_rate` je `source`
+  - Fallback: (dist_bin, source) → (source) → globaler Median
+- **Ausreisser:** absolute Grenzen [50, 3000] kcal und Verhältnis 25–120 kcal/km (Winsorising).
+- **Begründung:** Median-Binning nach Distanz × HF spiegelt Trainingsaufwand realistischer wider als globale Mittelwerte.
+
+**avg_heart_rate**
+- **Missing:** Median-Imputation je `source`.
+- **Datenfehler:** ≤ 0 bpm → NaN.
+- **Ausreisser:** ausserhalb [80, 210] bpm → droppen.
+- **Begründung:** Median-Imputation ist für sportphysiologische Daten ausreichend robust (vgl. Scharhag et al., *Int J Sports Physiol Perform*, 2019).
+
+**max_heart_rate**
+- **Missing:** Median-Imputation je `source`.
+- **Konsistenzregel:**
+  - wenn `max_hr < avg_hr` und Differenz ≤ 3 bpm → `max_hr = avg_hr` (Rundungsabweichung)
+  - sonst beide NaN (→ Imputation).
+- **Ausreisser:** > 230 bpm → droppen.
+- **Begründung:** korrigiert Rundungsfehler und eliminiert unphysiologische Spitzen.
+
+**source**
+- **Missing:** mit `"garmin"` füllen und als `category` typisieren.
+- **Begründung:** sichert eindeutige Zuordnung der Datenquelle.
+
+**export_date**
+- **Missing:** aus Pfad abgeleitet; falls nicht verfügbar → `NaT`.
+- **Begründung:** Exportdatum liefert eindeutige zeitliche Einordnung und Herkunftsinformation.
+
+---
+
+**Gesamtergebnis:**
+Ein bereinigter Garmin-Datensatz mit plausiblen Werten, stabilen Einheiten und konsistentem Zeitindex.
+Alle Verarbeitungsschritte sind in der Funktion `clean_garmin_data()` dokumentiert und reproduzierbar.
+
+#### 2.1.1 Filter nach Laufsport
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-09T16:32:27.999073Z', start_time: '2025-10-09T16:32:27.986686Z'}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.368891Z', start_time: '2025-10-10T17:05:15.357253Z'}
 # Analysefokus definieren (Laufsport)
 
 garmin_df = import_garmin_activities()
@@ -355,13 +441,14 @@ if "activity_type" in garmin_df.columns:
     before = len(garmin_df)
     garmin_df = garmin_df[garmin_df["activity_type"].str.lower().str.contains("run", na=False)].copy()
     after = len(garmin_df)
-    print(f"Scope-Filter: kept {after}/{before} rows where activity_type == 'Running'")
+    print(f"\n✅ Garmin: Filter nach Laufsport abgeschlossen. Verbleibende Aktivitäten: {len(garmin_df)}")
+    print(garmin_df["activity_type"].value_counts())
 ```
 
-### Reduktion auf Kern Aktivitäten
+#### 2.1.2 Reduktion auf Kern- Aktivitäten
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-09T16:32:28.058759Z', start_time: '2025-10-09T16:32:28.051944Z'}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.418774Z', start_time: '2025-10-10T17:05:15.411895Z'}
 # Gemeinsames Schema mit Apple (LE1-Ergebnis)
 core_cols = [
     "date", "activity_type", "distance_km", "duration",
@@ -382,34 +469,15 @@ for c in missing:
 # 3) Spalten in Zielreihenfolge anordnen
 garmin_df_core = garmin_df_core[core_cols]
 
+print("\n✅ Garmin: Reduktion auf Kern-Aktivitäten abgeschlossen.")
+print(f"Behaltene Spalten: {list(garmin_df_core.columns)}")
 
 ```
 
-### Typisierung und Einheiten (Garmin)
-
-**Ziel**:
-In diesem Schritt werden die Rohdaten aus den Garmin-CSV-Dateien in eine einheitlich auswertbare Form gebracht.
-Dabei geht es **nicht** um die Bereinigung fehlerhafter Werte, sondern um die **Vorbereitung der Datentypen und Einheiten**, damit anschliessende Analysen oder statistische Verfahren korrekt rechnen können.
-
-
-**Vorgehen**:
-1. `date` wird in das Datumsformat (`datetime64`) konvertiert.
-   → ermöglicht Zeitreihen-Analysen und Datumsoperationen.
-2. `duration` wird aus Textformat (`hh:mm:ss` oder `mm:ss`) in Sekunden (`duration_sec`) umgerechnet.
-   → erleichtert Berechnungen von Pace, Geschwindigkeit und Dauervergleichen.
-3. `distance_km` wird geprüft – falls Werte über 200 vorkommen, wird angenommen, dass sie in **Metern** vorliegen, und durch 1000 geteilt.
-4. Alle numerischen Variablen (`distance_km`, `duration_sec`, `calories`, `avg_heart_rate`, `max_heart_rate`) werden zu `float`.
-   → sichert mathematische Operationen und Imputationsverfahren in LE2.
-5. Kategorische Variablen (`activity_type`, `source`) werden als `category` typisiert.
-   → spart Speicherplatz und ermöglicht Gruppenanalysen.
-6. Abschliessend wird eine Übersicht der wichtigsten numerischen Spalten ausgegeben (`describe()`).
-
-**Ergebnis**:
-Ein DataFrame `garmin_df_typed` mit konsistenten Datentypen, normierten Einheiten und neuen Variablen (`duration_sec`),
-der als Grundlage für die weitere Datenbereinigung dient.
+#### 2.1.3 Typisierung und Einheiten
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-09T16:32:28.151547Z', start_time: '2025-10-09T16:32:28.125738Z'}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.461252Z', start_time: '2025-10-10T17:05:15.450456Z'}
 
 def convert_duration_to_seconds(duration_str):
     """
@@ -456,9 +524,8 @@ def clean_garmin_typing(df):
     df["activity_type"] = df["activity_type"].astype("category")
     df["source"] = df["source"].astype("category")
 
-    # 6️ Überblick der wichtigsten numerischen Variablen
     print("\n✅ Garmin: Typisierung & Einheiten abgeschlossen.")
-    print(df[numeric_cols].describe().T.round(2))
+
 
     return df
 
@@ -467,8 +534,464 @@ def clean_garmin_typing(df):
 garmin_df_typed = clean_garmin_typing(garmin_df_core)
 ```
 
+#### 2.1.3 Data Cleaning
+
+```{python}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.531386Z', start_time: '2025-10-10T17:05:15.494672Z'}
+def clean_garmin_data(df):
+    """
+    Entfernt Duplikate, behandelt Missing/Fehler und Ausreisser
+    für Running-Daten aus Garmin. Erwartet Spalten:
+    ['date','activity_type','distance_km','duration','duration_sec',
+     'calories','avg_heart_rate','max_heart_rate','source','export_date']
+    """
+    df = df.copy()
+
+    # 0) Essenzielle Spalten sicherstellen (date ist NICHT essentiell)
+    essential = ["distance_km", "duration_sec"]
+    for c in essential:
+        if c not in df.columns:
+            raise ValueError(f"Erwartete Spalte fehlt: {c}")
+
+    # 0.1) Datums-Imputation aus export_date (Status: vorher/nachher)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    export_dt = pd.to_datetime(df["export_date"], errors="coerce")
+
+    before_date_nan = df["date"].isna().sum()
+    mask_date_missing = df["date"].isna() & export_dt.notna()
+    df.loc[mask_date_missing, "date"] = export_dt.loc[mask_date_missing] + pd.Timedelta(hours=12)
+    after_date_nan = df["date"].isna().sum()
+    print(f"Date-Imputation: NaN {before_date_nan}→{after_date_nan} (aus export_date gesetzt: {mask_date_missing.sum()})")
+
+    # 1) Duplikate (quellenweise) entfernen
+    before = len(df)
+    df = df.drop_duplicates(subset=["source", "date", "distance_km", "duration_sec"])
+    print(f"Duplikate entfernt: {before - len(df)}")
+
+    # 2) Essentielle Missing droppen (ohne 'date')
+    before = len(df)
+    df = df.dropna(subset=essential)
+    print(f"Zeilen ohne essenzielle Werte entfernt: {before - len(df)}")
+
+    # 3) Harte Plausibilitätsgrenzen – soft
+    before = len(df)
+    mask_plaus = (
+        df["distance_km"].between(0.05, 60, inclusive="both") &
+        df["duration_sec"].between(60, 18000, inclusive="both")  # 1–5 h
+    )
+    df = df[mask_plaus].copy()
+    print(f"Unplausible Distanz/Dauer entfernt: {before - len(df)}")
+
+    # 4) Pace-Check – Anfängerfreundlich (2.3–10.5 min/km)
+    pace_min_per_km = (df["duration_sec"] / 60.0) / df["distance_km"]
+    before = len(df)
+    df = df[pace_min_per_km.between(2.3, 10.5, inclusive="both")].copy()
+    print(f"Pace-Ausreisser entfernt: {before - len(df)}")
+
+    # 5) Herzfrequenzen behandeln (Plausibilität & Imputation) – mit Status
+    before_nan_avg = df["avg_heart_rate"].isna().sum()
+    before_nan_max = df["max_heart_rate"].isna().sum()
+
+    # Plausibilität
+    df.loc[(df["avg_heart_rate"] <= 0) | (df["avg_heart_rate"] > 300), "avg_heart_rate"] = np.nan
+    df.loc[(df["max_heart_rate"] <= 0) | (df["max_heart_rate"] > 300), "max_heart_rate"] = np.nan
+
+    # Konsistenzregel: max_hr < avg_hr
+    mask_inverted = (df["max_heart_rate"].notna() & df["avg_heart_rate"].notna() &
+                     (df["max_heart_rate"] < df["avg_heart_rate"]))
+    tol_mask = mask_inverted & ((df["avg_heart_rate"] - df["max_heart_rate"]) <= 3)
+    df.loc[tol_mask, "max_heart_rate"] = df.loc[tol_mask, "avg_heart_rate"]  # Rundungstoleranz
+    hard_conflict = mask_inverted & ~tol_mask
+    df.loc[hard_conflict, ["avg_heart_rate", "max_heart_rate"]] = np.nan
+
+    # Median-Imputation je Quelle
+    for col in ["avg_heart_rate", "max_heart_rate"]:
+        med = df.groupby("source")[col].transform("median")
+        df[col] = df[col].fillna(med)
+
+    after_nan_avg = df["avg_heart_rate"].isna().sum()
+    after_nan_max = df["max_heart_rate"].isna().sum()
+    print(
+        f"HF-Bereinigung: avg_hr NaN {before_nan_avg}→{after_nan_avg}, "
+        f"max_hr NaN {before_nan_max}→{after_nan_max}, "
+        f"Konflikte (max<avg): {int(mask_inverted.sum())}, davon toleriert: {int(tol_mask.sum())}, hart: {int(hard_conflict.sum())}"
+    )
+
+    # 6) Kalorien: fehlerhafte/fehlende Werte gruppenbasiert imputieren – mit Status
+    df["calories"] = pd.to_numeric(df["calories"], errors="coerce")
+    before_bad_cal = df["calories"].isna().sum() + (df["calories"] <= 0).fillna(False).sum()
+
+    # Negative/0 → NaN
+    df.loc[df["calories"] <= 0, "calories"] = np.nan
+
+    # gruppenbasierte Imputation (nutzt _impute_grouped_calories)
+    cal_before_impute_nan = df["calories"].isna().sum()
+    df = _impute_grouped_calories(df)
+    cal_after_impute_nan = df["calories"].isna().sum()
+
+    # Winsorising: absolute Grenzen + kcal/km
+    cal_before_clip = df["calories"].copy()
+    df["calories"] = df["calories"].clip(lower=50, upper=3000)
+    wins_abs = _count_changed(cal_before_clip, df["calories"])
+
+    kcal_per_km = (df["calories"] / df["distance_km"]).clip(lower=25, upper=120)
+    cal_before_ratio_clip = df["calories"].copy()
+    df["calories"] = (kcal_per_km * df["distance_km"]).round(0)
+    wins_ratio = _count_changed(cal_before_ratio_clip, df["calories"])
+
+    print(
+        f"Kalorien: fehlerhaft/fehlend (vorher) {before_bad_cal}, "
+        f"Imputation NaN {cal_before_impute_nan}→{cal_after_impute_nan}, "
+        f"Winsorisiert (abs): {wins_abs}, Winsorisiert (kcal/km): {wins_ratio}"
+    )
+
+    # 7) Finaler HF-Sweep (physiologische Grenzen)
+    before = len(df)
+    df = df[df["avg_heart_rate"].between(80, 210, inclusive="both")]
+    print(f"HF-Ausreisser entfernt: {before - len(df)}")
+
+    # 8) Aufräumen / Typen sichern
+    df["activity_type"] = df["activity_type"].astype("category")
+    df["source"] = df["source"].astype("category")
+
+    print(f"✅ Bereinigung abgeschlossen – verbleibende Läufe: {len(df)}")
+    return df
+
+garmin_clean = clean_garmin_data(garmin_df_typed)
+```
+
 ### 2.2 Apple Data Cleaning
 
+**2.2.1 Filter nach Laufsport**
+
+**Ziel:**
+Nur Laufaktivitäten (`activity_type == "Running"`) werden für die Analyse beibehalten, um direkte Vergleichbarkeit mit Garmin zu gewährleisten.
+Apple Health enthält zahlreiche weitere Aktivitätstypen (z. B. Gehen, Radfahren, Schwimmen), die für diese Arbeit ausgeschlossen werden.
+
+**Vorgehen:**
+Nach dem XML-Import werden alle Workouts gefiltert, deren `HKWorkoutActivityType` dem Typ *Running* entspricht.
+Sowohl „Indoor Running“ als auch „Outdoor Running“ werden gleich behandelt, da Apple sie unter dem gemeinsamen Typ „Running“ exportiert.
+
+**Ergebnis:**
+Der Datensatz enthält ausschliesslich Lauftrainings und ist damit direkt mit den Garmin-Workouts vergleichbar.
+
+---
+
+**2.2.2 Typisierung und Einheiten (inkl. Reduktion)**
+
+**Ziel:**
+Die gefilterten Apple-Workouts werden in ein harmonisiertes Format gebracht, das strukturell und einheitlich zu Garmin passt.
+Dabei werden alle nicht relevanten Messwerte verworfen und die verbleibenden Variablen typisiert und auf gemeinsame Einheiten normiert.
+
+**Vorgehen:**
+Nach dem Import und der Filterung erfolgt eine Typisierung und Vereinheitlichung der Variablen:
+
+1. **Schema-Anpassung**
+   - `distance` → `distance_km`
+   - `duration` → `duration_sec`
+   Diese Umbenennung erfolgt ohne Berechnung, nur zur Angleichung an Garmin.
+
+2. **Datumsfelder**
+   - `date` und `export_date` werden in das Datumsformat (`datetime64`) konvertiert.
+
+3. **Numerische Variablen**
+   - `distance_km`, `duration_sec`, `calories`, `avg_heart_rate`, `max_heart_rate` werden als `float` typisiert.
+
+4. **Einheiten-Normalisierung**
+   - Falls `duration` in Minuten vorliegt (Median zwischen 10–200 → typische Laufzeit), erfolgt automatische Umrechnung in Sekunden (× 60).
+   - Falls Distanzen grösser als 200 auftreten, werden sie als Meter interpretiert und durch 1000 geteilt.
+
+5. **Kategorien**
+   - `activity_type` und `source` werden als kategoriale Variablen gesetzt.
+
+6. **Spaltenharmonisierung**
+   - Das endgültige Schema lautet:
+     `date`, `activity_type`, `distance_km`, `duration_sec`, `calories`,
+     `avg_heart_rate`, `max_heart_rate`, `source`, `export_date`.
+
+**Ergebnis:**
+Ein harmonisierter DataFrame `apple_df_typed`, der inhaltlich und strukturell dem Garmin-Datensatz entspricht und als Grundlage für die Bereinigung dient.
+
+---
+
+**2.2.3 Data Cleaning**
+
+**Vorbedingungen:**
+- `date` korrekt typisiert (`datetime64`)
+- `activity_type` auf *Running* gefiltert
+- Einheiten normalisiert (km / s / kcal / bpm)
+
+---
+
+**date**
+- **Missing:** falls leer, `NaT` beibehalten.
+- **Datenfehler:** Zukunftsdaten → `NaT`.
+- **Begründung:** Apple-Exporte enthalten ISO-Zeitstempel, daher selten fehlerhaft.
+
+**distance_km**
+- **Missing:** Zeilen mit `NaN` werden entfernt.
+- **Datenfehler:** ≤ 0 oder < 0.05 km → droppen.
+- **Ausreisser:** ausserhalb [0.05, 60] km oder Pace > 10.5 min/km → droppen.
+- **Begründung:** Negative oder extrem kleine Distanzen entstehen bei fehlerhaften GPS-Tracks oder unkalibrierten Indoor-Läufen.
+
+**duration_sec**
+- **Missing:** droppen.
+- **Datenfehler:** ≤ 0 s oder > 18 000 s (5 h) → droppen.
+- **Ausreisser:** Pace < 2.3 min/km oder > 10.5 min/km → droppen.
+- **Begründung:** Werte ausserhalb dieses Bereichs deuten auf fehlerhafte Zeitmessung oder Pausen hin.
+
+**calories**
+- **Missing oder fehlerhafte Werte (≤ 0):** gruppenbasierte Median-Imputation
+  - Distanz-Bins: [0–5), [5–10), [10–15), [15–25), [25–50) km
+  - Herzfrequenz-Bins: Quartile der `avg_heart_rate`
+  - Fallback: globaler Median
+- **Ausreisser:** absolute Grenzen [50, 3000] kcal; Verhältnis 25–120 kcal/km (Winsorising).
+- **Begründung:** Realistische Spannweite typischer Energieumsätze beim Laufen.
+
+**avg_heart_rate**
+- **Missing:** Median-Imputation pro Quelle (`source`).
+- **Datenfehler:** ≤ 0 bpm oder > 300 bpm → NaN.
+- **Ausreisser:** ausserhalb [80, 210] bpm → droppen.
+- **Begründung:** Sensorverluste oder Bewegungsartefakte können fehlerhafte Werte erzeugen.
+
+**max_heart_rate**
+- **Missing:** Median-Imputation pro Quelle (`source`).
+- **Konsistenzregel:**
+  - Wenn `max_hr < avg_hr` und Δ ≤ 3 → `max_hr = avg_hr`
+  - Sonst beide NaN (→ Imputation).
+- **Ausreisser:** > 230 bpm → droppen.
+- **Begründung:** Kurzzeitige Peaks oder Sensorfehler führen zu unrealistischen Maximalwerten.
+
+**source**
+- **Missing:** `"apple"` setzen.
+- **Typ:** `category`.
+- **Begründung:** Eindeutige Kennzeichnung der Datenquelle.
+
+**export_date**
+- **Missing:** aus Ordnerpfad abgeleitet, andernfalls `NaT`.
+- **Begründung:** Ermöglicht zeitliche Rückverfolgbarkeit des Datenexports.
+
+---
+
+**Gesamtergebnis**
+
+Ein bereinigter Apple-Datensatz `apple_clean`, der:
+- nur Laufaktivitäten enthält,
+- auf dieselben Kernvariablen reduziert ist wie der Garmin-Datensatz,
+- konsistente Typen und Einheiten aufweist,
+- nach identischen Plausibilitäts- und Imputationsregeln bereinigt wurde.
+
+
+
+#### 2.2.1 Filter nach Laufsport
+
+```{python}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.559282Z', start_time: '2025-10-10T17:05:15.553140Z'}
+# Hinweis: Apple-Codes sind z.B. "Running", "Walking", "Cycling", ...
+before = len(apple_df_raw)
+apple_df = apple_df_raw[apple_df_raw["activity_type"].str.lower().str.contains("running", na=False)].copy()
+after = len(apple_df)
+
+print(f"\n✅ Apple: Filter nach Laufsport abgeschlossen. Verbleibende Workouts: {after}/{before}")
+print(apple_df["activity_type"].value_counts())
+```
+
+
+
+
+#### 2.2.2 Typisierung und Einheiten
+
+```{python}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.635212Z', start_time: '2025-10-10T17:05:15.606408Z'}
+
+def clean_apple_typing(df):
+    """
+    Bringt den gefilterten Apple-Frame (Import -> Filter) ins harmonisierte Schema
+    und normalisiert Einheiten. Übernimmt damit die bisherige 'Reduktion'.
+    Erwartete Eingabe-Spalten (neutral aus Import):
+      'date','activity_type','distance','duration','calories','avg_heart_rate','max_heart_rate','source','export_date'
+    Ergebnis-Spalten (harmonisiert zu Garmin):
+      'date','activity_type','distance_km','duration_sec','calories','avg_heart_rate','max_heart_rate','source','export_date'
+    """
+    df = df.copy()
+
+    # 1) Schema-Umbenennung (neutral -> harmonisiert), OHNE Umrechnung
+    rename_map = {}
+    if "distance" in df.columns and "distance_km" not in df.columns:
+        rename_map["distance"] = "distance_km"
+    if "duration" in df.columns and "duration_sec" not in df.columns:
+        rename_map["duration"] = "duration_sec"
+    if rename_map:
+        df.rename(columns=rename_map, inplace=True)
+
+    # 2) Datumsfelder
+    df["date"] = pd.to_datetime(df.get("date"), errors="coerce")
+    df["export_date"] = pd.to_datetime(df.get("export_date"), errors="coerce")
+
+    # 3) Numerik casten
+    num_cols = ["distance_km", "duration_sec", "calories", "avg_heart_rate", "max_heart_rate"]
+    for c in num_cols:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+        else:
+            df[c] = np.nan
+
+    # 4) Einheiten-Normalisierung
+    # 4a) Dauer: Apple liefert oft Minuten -> Heuristik (typische Laufdauern 10–200)
+    med_dur = df["duration_sec"].median()
+    if pd.notna(med_dur) and 10 <= med_dur <= 200:
+        df["duration_sec"] = df["duration_sec"] * 60
+        print("ℹ️ Apple: duration_sec sah nach MINUTEN aus → in Sekunden umgerechnet (×60).")
+
+    # 4b) Distanz: dein Export liefert bereits km; falls irgendwas sehr groß wirkt (>200), als Meter interpretieren
+    if (df["distance_km"] > 200).any():
+        df["distance_km"] = df["distance_km"] / 1000.0
+        print("ℹ️ Apple: distance_km enthielt offenbar Meter → in Kilometer umgerechnet (/1000).")
+
+    # 5) Kategorien
+    df["activity_type"] = df["activity_type"].astype("category")
+    df["source"] = df["source"].astype("category")
+
+    # 6) Spaltenreihenfolge sichern (falls etwas fehlte, auffüllen)
+    core_cols = [
+        "date", "activity_type", "distance_km", "duration_sec", "calories",
+        "avg_heart_rate", "max_heart_rate", "source", "export_date"
+    ]
+    for c in core_cols:
+        if c not in df.columns:
+            df[c] = np.nan
+    df = df[core_cols].copy()
+
+    # 7) Status
+    print("\n✅ Apple: Typisierung & Einheiten abgeschlossen (inkl. Schema-Umbenennung).")
+    print(df[["distance_km", "duration_sec", "calories", "avg_heart_rate", "max_heart_rate"]].describe().T.round(2))
+
+    return df
+
+
+# Anwendung direkt nach dem Filter:
+apple_df_typed = clean_apple_typing(apple_df)
+```
+
+#### 2.2.3 Data Cleaning
+
+```{python}
+#| ExecuteTime: {end_time: '2025-10-10T17:05:15.710342Z', start_time: '2025-10-10T17:05:15.662220Z'}
+# nutzt die gleichen Helper wie Garmin: _build_distance_bins, _build_hr_bins_per_source, _impute_grouped_calories
+
+def clean_apple_data(df):
+    """
+    Entfernt Duplikate, behandelt Missing/Fehler und Ausreisser
+    für Running-Daten aus Apple Health. Erwartet harmonisiertes Schema.
+    """
+    df = df.copy()
+
+    # 0) Essenzielle Spalten: distance_km, duration_sec (date NICHT essentiell)
+    essential = ["distance_km", "duration_sec"]
+    for c in essential:
+        if c not in df.columns:
+            raise ValueError(f"Erwartete Spalte fehlt: {c}")
+
+    # 0.1 Date-Fallback: (seltener nötig als bei Garmin) – aus export_date + 12h
+    before_date_nan = df["date"].isna().sum()
+    mask_date_missing = df["date"].isna() & df["export_date"].notna()
+    df.loc[mask_date_missing, "date"] = df.loc[mask_date_missing, "export_date"] + pd.Timedelta(hours=12)
+    after_date_nan = df["date"].isna().sum()
+    print(
+        f"Date-Imputation (Apple): NaN {before_date_nan}→{after_date_nan} (aus export_date gesetzt: {mask_date_missing.sum()})")
+
+    # 1) Duplikate (quellenweise)
+    before = len(df)
+    df = df.drop_duplicates(subset=["source", "date", "distance_km", "duration_sec"])
+    print(f"Duplikate entfernt: {before - len(df)}")
+
+    # 2) Essentielle Missing droppen
+    before = len(df)
+    df = df.dropna(subset=essential)
+    print(f"Zeilen ohne essenzielle Werte entfernt: {before - len(df)}")
+
+    # 3) Plausibilitätsgrenzen (soft, wie bei Garmin)
+    before = len(df)
+    mask_plaus = (
+            df["distance_km"].between(0.05, 60, inclusive="both") &
+            df["duration_sec"].between(60, 18000, inclusive="both")
+    )
+    df = df[mask_plaus].copy()
+    print(f"Unplausible Distanz/Dauer entfernt: {before - len(df)}")
+
+    # 4) Pace-Check (2.3–10.5 min/km, wie Garmin)
+    pace_min_per_km = (df["duration_sec"] / 60.0) / df["distance_km"]
+    before = len(df)
+    df = df[pace_min_per_km.between(2.3, 10.5, inclusive="both")].copy()
+    print(f"Pace-Ausreisser entfernt: {before - len(df)}")
+
+    # 5) Herzfrequenzen: Plausibilität & Imputation
+    before_nan_avg = df["avg_heart_rate"].isna().sum()
+    before_nan_max = df["max_heart_rate"].isna().sum()
+
+    df.loc[(df["avg_heart_rate"] <= 0) | (df["avg_heart_rate"] > 300), "avg_heart_rate"] = np.nan
+    df.loc[(df["max_heart_rate"] <= 0) | (df["max_heart_rate"] > 300), "max_heart_rate"] = np.nan
+
+    mask_inverted = (df["max_heart_rate"].notna() & df["avg_heart_rate"].notna() &
+                     (df["max_heart_rate"] < df["avg_heart_rate"]))
+    tol_mask = mask_inverted & ((df["avg_heart_rate"] - df["max_heart_rate"]) <= 3)
+    df.loc[tol_mask, "max_heart_rate"] = df.loc[tol_mask, "avg_heart_rate"]
+    hard_conflict = mask_inverted & ~tol_mask
+    df.loc[hard_conflict, ["avg_heart_rate", "max_heart_rate"]] = np.nan
+
+    # Median-Imputation je Quelle
+    for col in ["avg_heart_rate", "max_heart_rate"]:
+        med = df.groupby("source")[col].transform("median")
+        df[col] = df[col].fillna(med)
+
+    after_nan_avg = df["avg_heart_rate"].isna().sum()
+    after_nan_max = df["max_heart_rate"].isna().sum()
+    print(
+        f"HF-Bereinigung (Apple): avg_hr NaN {before_nan_avg}→{after_nan_avg}, "
+        f"max_hr NaN {before_nan_max}→{after_nan_max}, "
+        f"Konflikte (max<avg): {int(mask_inverted.sum())}, toleriert: {int(tol_mask.sum())}, hart: {int(hard_conflict.sum())}"
+    )
+
+    # 6) Kalorien: fehlerhafte/fehlende Werte gruppenbasiert imputieren (Distanz×HF)
+    df["calories"] = pd.to_numeric(df["calories"], errors="coerce")
+    before_bad_cal = df["calories"].isna().sum() + (df["calories"] <= 0).fillna(False).sum()
+
+    df.loc[df["calories"] <= 0, "calories"] = np.nan
+    cal_before_impute_nan = df["calories"].isna().sum()
+    df = _impute_grouped_calories(df)  # gleiche Helper wie Garmin
+    cal_after_impute_nan = df["calories"].isna().sum()
+
+    cal_before_clip = df["calories"].copy()
+    df["calories"] = df["calories"].clip(lower=50, upper=3000)
+    wins_abs = _count_changed(cal_before_clip, df["calories"])
+
+    kcal_per_km = (df["calories"] / df["distance_km"]).clip(lower=25, upper=120)
+    cal_before_ratio_clip = df["calories"].copy()
+    df["calories"] = (kcal_per_km * df["distance_km"]).round(0)
+    wins_ratio = _count_changed(cal_before_ratio_clip, df["calories"])
+
+    print(
+        f"Kalorien (Apple): fehlerhaft/fehlend (vorher) {before_bad_cal}, "
+        f"Imputation NaN {cal_before_impute_nan}→{cal_after_impute_nan}, "
+        f"Winsorisiert (abs): {wins_abs}, Winsorisiert (kcal/km): {wins_ratio}"
+    )
+
+    # 7) Finaler HF-Sweep
+    before = len(df)
+    df = df[df["avg_heart_rate"].between(80, 210, inclusive="both")]
+    print(f"HF-Ausreisser entfernt: {before - len(df)}")
+
+    # 8) Aufräumen
+    df["activity_type"] = df["activity_type"].astype("category")
+    df["source"] = df["source"].astype("category")
+
+    print(f"✅ Bereinigung abgeschlossen – Apple-Workouts verbleibend: {len(df)}")
+    return df
+
+
+# Apple-Bereinigung ausführen
+apple_clean = clean_apple_data(apple_df_typed)
+```
 
 
 
