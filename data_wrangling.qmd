@@ -5,7 +5,7 @@ jupyter: python3
 
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:03.127772Z', start_time: '2025-10-10T17:05:02.756259Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:04.157420Z', start_time: '2025-10-11T08:17:03.319483Z'}
 import pandas as pd
 import numpy as np
 from lxml import etree # lxml, da grosse dateien bei apple
@@ -31,7 +31,7 @@ Besondere Herausforderungen:
 Lösung: Multi-Encoding-Parser mit automatischer Erkennung und Spalten-Standardisierung.
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:03.147509Z', start_time: '2025-10-10T17:05:03.141602Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:04.178944Z', start_time: '2025-10-11T08:17:04.171357Z'}
 def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
     """
     Import all Garmin CSV files and combine into single DataFrame
@@ -83,7 +83,7 @@ def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
 ```
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:03.291168Z', start_time: '2025-10-10T17:05:03.266559Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:05.148559Z', start_time: '2025-10-11T08:17:05.095692Z'}
 # Test the function
 garmin_df = import_garmin_activities()
 print(f"Garmin activities imported: {len(garmin_df)}")
@@ -117,7 +117,7 @@ Damit wird der Import ressourcenschonend, das Schema bleibt schlank, und die Dat
 **Import-Strategie erfolgreich**: Separate DataFrames ermöglichen individuelle Bereinigung (LE2) und flexible Join-Strategien (LE4).
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.063881Z', start_time: '2025-10-10T17:05:03.366811Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:18.344756Z', start_time: '2025-10-11T08:17:05.441150Z'}
 def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
     """
     Apple Health Workouts roh importieren.
@@ -194,7 +194,7 @@ apple_df_raw = import_apple_workouts()
 ```
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.127014Z', start_time: '2025-10-10T17:05:15.115709Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:18.405244Z', start_time: '2025-10-11T08:17:18.394700Z'}
 apple_df_raw.head(132)
 ```
 
@@ -231,8 +231,10 @@ Zählt geänderte Werte zwischen zwei Serien (`np.count_nonzero`).
 **Gesamt:**
 Diese Funktionen bilden das Fundament für robuste, konsistente und quellübergreifende Kalorien-Imputation und stellen Datenqualität vor der Analyse sicher.
 
+#### Helperfunktionen für gruppenbasierte Imputation
+
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.300395Z', start_time: '2025-10-10T17:05:15.292277Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:18.438087Z', start_time: '2025-10-11T08:17:18.429868Z'}
 
 
 
@@ -432,7 +434,7 @@ Alle Verarbeitungsschritte sind in der Funktion `clean_garmin_data()` dokumentie
 #### 2.1.1 Filter nach Laufsport
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.368891Z', start_time: '2025-10-10T17:05:15.357253Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:18.637682Z', start_time: '2025-10-11T08:17:18.620736Z'}
 # Analysefokus definieren (Laufsport)
 
 garmin_df = import_garmin_activities()
@@ -448,7 +450,7 @@ if "activity_type" in garmin_df.columns:
 #### 2.1.2 Reduktion auf Kern- Aktivitäten
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.418774Z', start_time: '2025-10-10T17:05:15.411895Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:18.781197Z', start_time: '2025-10-11T08:17:18.773467Z'}
 # Gemeinsames Schema mit Apple (LE1-Ergebnis)
 core_cols = [
     "date", "activity_type", "distance_km", "duration",
@@ -477,7 +479,7 @@ print(f"Behaltene Spalten: {list(garmin_df_core.columns)}")
 #### 2.1.3 Typisierung und Einheiten
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.461252Z', start_time: '2025-10-10T17:05:15.450456Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:18.894407Z', start_time: '2025-10-11T08:17:18.880992Z'}
 
 def convert_duration_to_seconds(duration_str):
     """
@@ -537,7 +539,7 @@ garmin_df_typed = clean_garmin_typing(garmin_df_core)
 #### 2.1.3 Data Cleaning
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.531386Z', start_time: '2025-10-10T17:05:15.494672Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:19.050346Z', start_time: '2025-10-11T08:17:18.975031Z'}
 def clean_garmin_data(df):
     """
     Entfernt Duplikate, behandelt Missing/Fehler und Ausreisser
@@ -786,7 +788,7 @@ Ein bereinigter Apple-Datensatz `apple_clean`, der:
 #### 2.2.1 Filter nach Laufsport
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.559282Z', start_time: '2025-10-10T17:05:15.553140Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:19.090477Z', start_time: '2025-10-11T08:17:19.082415Z'}
 # Hinweis: Apple-Codes sind z.B. "Running", "Walking", "Cycling", ...
 before = len(apple_df_raw)
 apple_df = apple_df_raw[apple_df_raw["activity_type"].str.lower().str.contains("running", na=False)].copy()
@@ -802,7 +804,7 @@ print(apple_df["activity_type"].value_counts())
 #### 2.2.2 Typisierung und Einheiten
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.635212Z', start_time: '2025-10-10T17:05:15.606408Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:19.213900Z', start_time: '2025-10-11T08:17:19.177636Z'}
 
 def clean_apple_typing(df):
     """
@@ -876,7 +878,7 @@ apple_df_typed = clean_apple_typing(apple_df)
 #### 2.2.3 Data Cleaning
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-10T17:05:15.710342Z', start_time: '2025-10-10T17:05:15.662220Z'}
+#| ExecuteTime: {end_time: '2025-10-11T08:17:19.354727Z', start_time: '2025-10-11T08:17:19.266826Z'}
 # nutzt die gleichen Helper wie Garmin: _build_distance_bins, _build_hr_bins_per_source, _impute_grouped_calories
 
 def clean_apple_data(df):
