@@ -3,12 +3,11 @@ title: Data Wrangler
 jupyter: python3
 ---
 
-
 ```{python}
 #| ExecuteTime: {end_time: '2025-10-11T08:17:04.157420Z', start_time: '2025-10-11T08:17:03.319483Z'}
 import pandas as pd
 import numpy as np
-from lxml import etree # lxml, da grosse dateien bei apple
+from lxml import etree  # lxml, da grosse dateien bei apple
 import glob
 from pathlib import Path
 import warnings
@@ -60,7 +59,7 @@ def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
             print(f"Failed to read {file} with any encoding")
             continue
 
-        df["source"] = "garmin" #harmonisierung mit apple
+        df["source"] = "garmin"  # harmonisierung mit apple
         df["export_date"] = export_date
 
         # Standardize column names for later joining (noch Teil von LE1: Struktur angleichen, nicht Daten bereinigen)
@@ -140,15 +139,18 @@ def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
                 workout_data = {
                     "source": "apple",
                     "export_date": export_date,
-                    "activity_type": elem.get("workoutActivityType", "").replace("HKWorkoutActivityType", ""),
+                    "activity_type": elem.get("workoutActivityType", "").replace(
+                        "HKWorkoutActivityType", ""
+                    ),
                     "date": elem.get("startDate", ""),
-                    "duration": elem.get("duration", ""),   # Einheit bleibt roh (Apple i.d.R. Minuten)
+                    "duration": elem.get(
+                        "duration", ""
+                    ),  # Einheit bleibt roh (Apple i.d.R. Minuten)
                     # Roh-Messwerte (werden unten aus WorkoutStatistics gefüllt)
-                    "distance": "",                          # Einheit roh lassen (Apple liefert hier üblicherweise km)
-                    "calories": "",                          # ActiveEnergyBurned (kcal)
+                    "distance": "",  # Einheit roh lassen (Apple liefert hier üblicherweise km)
+                    "calories": "",  # ActiveEnergyBurned (kcal)
                     "avg_heart_rate": "",
                     "max_heart_rate": "",
-
                 }
 
                 # --- WorkoutStatistics: gezielte Extraktion der Kernmetriken ---
@@ -171,8 +173,6 @@ def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
                         workout_data["avg_heart_rate"] = stats_elem.get("average", "")
                         workout_data["max_heart_rate"] = stats_elem.get("maximum", "")
 
-
-
                 apple_workouts.append(workout_data)
                 elem.clear()  # Speicher freigeben
 
@@ -181,13 +181,20 @@ def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
 
     # Kleine Import-Statistik (nur Info, keine Transformation)
     if not df.empty:
-        non_empty_dist = df["distance"].replace("", pd.NA).notna().sum() if "distance" in df else 0
-        non_empty_dur  = df["duration"].replace("", pd.NA).notna().sum() if "duration" in df else 0
-        print(f"\n✅ Apple: Import abgeschlossen. Workouts: {len(df)} | distance non-empty: {non_empty_dist} | duration non-empty: {non_empty_dur}")
+        non_empty_dist = (
+            df["distance"].replace("", pd.NA).notna().sum() if "distance" in df else 0
+        )
+        non_empty_dur = (
+            df["duration"].replace("", pd.NA).notna().sum() if "duration" in df else 0
+        )
+        print(
+            f"\n✅ Apple: Import abgeschlossen. Workouts: {len(df)} | distance non-empty: {non_empty_dist} | duration non-empty: {non_empty_dur}"
+        )
     else:
         print("\n⚠️ Apple: Import ergab keine Workouts.")
 
     return df
+
 
 # Import ausführen (LE1 – roh)
 apple_df_raw = import_apple_workouts()
@@ -198,7 +205,8 @@ apple_df_raw = import_apple_workouts()
 apple_df_raw.head(132)
 ```
 
-## 2. Bereinigen
+## LE 2: Bereinigen und LE3: Transformieren
+
 
 **Helperfunktionen für gruppenbasierte Imputation**
 
@@ -235,9 +243,6 @@ Diese Funktionen bilden das Fundament für robuste, konsistente und quellübergr
 
 ```{python}
 #| ExecuteTime: {end_time: '2025-10-11T08:17:18.438087Z', start_time: '2025-10-11T08:17:18.429868Z'}
-
-
-
 def _build_distance_bins(s: pd.Series):
     """
     Bins für Distanz: [0–5), [5–10), [10–15), [15–25), [25–50)
@@ -286,7 +291,9 @@ def _impute_grouped_calories(df: pd.DataFrame):
     out.loc[mask_bad, "calories"] = np.nan
 
     # Median-Tabellen
-    med3 = out.groupby(["source", "dist_bin", "hr_bin"], dropna=False)["calories"].median()
+    med3 = out.groupby(["source", "dist_bin", "hr_bin"], dropna=False)[
+        "calories"
+    ].median()
     med2 = out.groupby(["source", "dist_bin"], dropna=False)["calories"].median()
     med1 = out.groupby(["source"], dropna=False)["calories"].median()
     med0 = out["calories"].median()
@@ -308,6 +315,7 @@ def _impute_grouped_calories(df: pd.DataFrame):
     # Aufräumen
     out.drop(columns=["dist_bin", "hr_bin"], inplace=True)
     return out
+
 
 def _count_changed(series_old: pd.Series, series_new: pd.Series) -> int:
     """
@@ -349,6 +357,7 @@ Alle anderen Variablen werden verworfen, da sie für LE2–LE4 nicht benötigt w
 Ein kompakter, auf Analyse und Vergleich ausgerichteter Datensatz mit identischer Variablenstruktur zu Apple Health.
 
 ---
+
 **2.1.3 Typisierung und Einheiten**
 
 **Ziel:**
@@ -441,9 +450,13 @@ garmin_df = import_garmin_activities()
 
 if "activity_type" in garmin_df.columns:
     before = len(garmin_df)
-    garmin_df = garmin_df[garmin_df["activity_type"].str.lower().str.contains("run", na=False)].copy()
+    garmin_df = garmin_df[
+        garmin_df["activity_type"].str.lower().str.contains("run", na=False)
+    ].copy()
     after = len(garmin_df)
-    print(f"\n✅ Garmin: Filter nach Laufsport abgeschlossen. Verbleibende Aktivitäten: {len(garmin_df)}")
+    print(
+        f"\n✅ Garmin: Filter nach Laufsport abgeschlossen. Verbleibende Aktivitäten: {len(garmin_df)}"
+    )
     print(garmin_df["activity_type"].value_counts())
 ```
 
@@ -453,9 +466,15 @@ if "activity_type" in garmin_df.columns:
 #| ExecuteTime: {end_time: '2025-10-11T08:17:18.781197Z', start_time: '2025-10-11T08:17:18.773467Z'}
 # Gemeinsames Schema mit Apple (LE1-Ergebnis)
 core_cols = [
-    "date", "activity_type", "distance_km", "duration",
-    "calories", "avg_heart_rate", "max_heart_rate",
-    "source", "export_date"
+    "date",
+    "activity_type",
+    "distance_km",
+    "duration",
+    "calories",
+    "avg_heart_rate",
+    "max_heart_rate",
+    "source",
+    "export_date",
 ]
 
 # 1) Auf vorhandene Kernspalten reduzieren
@@ -473,14 +492,12 @@ garmin_df_core = garmin_df_core[core_cols]
 
 print("\n✅ Garmin: Reduktion auf Kern-Aktivitäten abgeschlossen.")
 print(f"Behaltene Spalten: {list(garmin_df_core.columns)}")
-
 ```
 
 #### 2.1.3 Typisierung und Einheiten
 
 ```{python}
 #| ExecuteTime: {end_time: '2025-10-11T08:17:18.894407Z', start_time: '2025-10-11T08:17:18.880992Z'}
-
 def convert_duration_to_seconds(duration_str):
     """
     Converts Garmin duration strings ('hh:mm:ss' or 'mm:ss') into total seconds.
@@ -518,7 +535,13 @@ def clean_garmin_typing(df):
         df["distance_km"] = df["distance_km"] / 1000
 
     # 4️ Numerische Typisierung
-    numeric_cols = ["distance_km", "duration_sec", "calories", "avg_heart_rate", "max_heart_rate"]
+    numeric_cols = [
+        "distance_km",
+        "duration_sec",
+        "calories",
+        "avg_heart_rate",
+        "max_heart_rate",
+    ]
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -527,7 +550,6 @@ def clean_garmin_typing(df):
     df["source"] = df["source"].astype("category")
 
     print("\n✅ Garmin: Typisierung & Einheiten abgeschlossen.")
-
 
     return df
 
@@ -561,9 +583,13 @@ def clean_garmin_data(df):
 
     before_date_nan = df["date"].isna().sum()
     mask_date_missing = df["date"].isna() & export_dt.notna()
-    df.loc[mask_date_missing, "date"] = export_dt.loc[mask_date_missing] + pd.Timedelta(hours=12)
+    df.loc[mask_date_missing, "date"] = export_dt.loc[mask_date_missing] + pd.Timedelta(
+        hours=12
+    )
     after_date_nan = df["date"].isna().sum()
-    print(f"Date-Imputation: NaN {before_date_nan}→{after_date_nan} (aus export_date gesetzt: {mask_date_missing.sum()})")
+    print(
+        f"Date-Imputation: NaN {before_date_nan}→{after_date_nan} (aus export_date gesetzt: {mask_date_missing.sum()})"
+    )
 
     # 1) Duplikate (quellenweise) entfernen
     before = len(df)
@@ -577,10 +603,11 @@ def clean_garmin_data(df):
 
     # 3) Harte Plausibilitätsgrenzen – soft
     before = len(df)
-    mask_plaus = (
-        df["distance_km"].between(0.05, 60, inclusive="both") &
-        df["duration_sec"].between(60, 18000, inclusive="both")  # 1–5 h
-    )
+    mask_plaus = df["distance_km"].between(0.05, 60, inclusive="both") & df[
+        "duration_sec"
+    ].between(
+        60, 18000, inclusive="both"
+    )  # 1–5 h
     df = df[mask_plaus].copy()
     print(f"Unplausible Distanz/Dauer entfernt: {before - len(df)}")
 
@@ -595,14 +622,23 @@ def clean_garmin_data(df):
     before_nan_max = df["max_heart_rate"].isna().sum()
 
     # Plausibilität
-    df.loc[(df["avg_heart_rate"] <= 0) | (df["avg_heart_rate"] > 300), "avg_heart_rate"] = np.nan
-    df.loc[(df["max_heart_rate"] <= 0) | (df["max_heart_rate"] > 300), "max_heart_rate"] = np.nan
+    df.loc[
+        (df["avg_heart_rate"] <= 0) | (df["avg_heart_rate"] > 300), "avg_heart_rate"
+    ] = np.nan
+    df.loc[
+        (df["max_heart_rate"] <= 0) | (df["max_heart_rate"] > 300), "max_heart_rate"
+    ] = np.nan
 
     # Konsistenzregel: max_hr < avg_hr
-    mask_inverted = (df["max_heart_rate"].notna() & df["avg_heart_rate"].notna() &
-                     (df["max_heart_rate"] < df["avg_heart_rate"]))
+    mask_inverted = (
+        df["max_heart_rate"].notna()
+        & df["avg_heart_rate"].notna()
+        & (df["max_heart_rate"] < df["avg_heart_rate"])
+    )
     tol_mask = mask_inverted & ((df["avg_heart_rate"] - df["max_heart_rate"]) <= 3)
-    df.loc[tol_mask, "max_heart_rate"] = df.loc[tol_mask, "avg_heart_rate"]  # Rundungstoleranz
+    df.loc[tol_mask, "max_heart_rate"] = df.loc[
+        tol_mask, "avg_heart_rate"
+    ]  # Rundungstoleranz
     hard_conflict = mask_inverted & ~tol_mask
     df.loc[hard_conflict, ["avg_heart_rate", "max_heart_rate"]] = np.nan
 
@@ -621,7 +657,9 @@ def clean_garmin_data(df):
 
     # 6) Kalorien: fehlerhafte/fehlende Werte gruppenbasiert imputieren – mit Status
     df["calories"] = pd.to_numeric(df["calories"], errors="coerce")
-    before_bad_cal = df["calories"].isna().sum() + (df["calories"] <= 0).fillna(False).sum()
+    before_bad_cal = (
+        df["calories"].isna().sum() + (df["calories"] <= 0).fillna(False).sum()
+    )
 
     # Negative/0 → NaN
     df.loc[df["calories"] <= 0, "calories"] = np.nan
@@ -658,6 +696,7 @@ def clean_garmin_data(df):
 
     print(f"✅ Bereinigung abgeschlossen – verbleibende Läufe: {len(df)}")
     return df
+
 
 garmin_clean = clean_garmin_data(garmin_df_typed)
 ```
@@ -791,21 +830,21 @@ Ein bereinigter Apple-Datensatz `apple_clean`, der:
 #| ExecuteTime: {end_time: '2025-10-11T08:17:19.090477Z', start_time: '2025-10-11T08:17:19.082415Z'}
 # Hinweis: Apple-Codes sind z.B. "Running", "Walking", "Cycling", ...
 before = len(apple_df_raw)
-apple_df = apple_df_raw[apple_df_raw["activity_type"].str.lower().str.contains("running", na=False)].copy()
+apple_df = apple_df_raw[
+    apple_df_raw["activity_type"].str.lower().str.contains("running", na=False)
+].copy()
 after = len(apple_df)
 
-print(f"\n✅ Apple: Filter nach Laufsport abgeschlossen. Verbleibende Workouts: {after}/{before}")
+print(
+    f"\n✅ Apple: Filter nach Laufsport abgeschlossen. Verbleibende Workouts: {after}/{before}"
+)
 print(apple_df["activity_type"].value_counts())
 ```
-
-
-
 
 #### 2.2.2 Typisierung und Einheiten
 
 ```{python}
 #| ExecuteTime: {end_time: '2025-10-11T08:17:19.213900Z', start_time: '2025-10-11T08:17:19.177636Z'}
-
 def clean_apple_typing(df):
     """
     Bringt den gefilterten Apple-Frame (Import -> Filter) ins harmonisierte Schema
@@ -831,7 +870,13 @@ def clean_apple_typing(df):
     df["export_date"] = pd.to_datetime(df.get("export_date"), errors="coerce")
 
     # 3) Numerik casten
-    num_cols = ["distance_km", "duration_sec", "calories", "avg_heart_rate", "max_heart_rate"]
+    num_cols = [
+        "distance_km",
+        "duration_sec",
+        "calories",
+        "avg_heart_rate",
+        "max_heart_rate",
+    ]
     for c in num_cols:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -843,12 +888,16 @@ def clean_apple_typing(df):
     med_dur = df["duration_sec"].median()
     if pd.notna(med_dur) and 10 <= med_dur <= 200:
         df["duration_sec"] = df["duration_sec"] * 60
-        print("ℹ️ Apple: duration_sec sah nach MINUTEN aus → in Sekunden umgerechnet (×60).")
+        print(
+            "ℹ️ Apple: duration_sec sah nach MINUTEN aus → in Sekunden umgerechnet (×60)."
+        )
 
     # 4b) Distanz: dein Export liefert bereits km; falls irgendwas sehr groß wirkt (>200), als Meter interpretieren
     if (df["distance_km"] > 200).any():
         df["distance_km"] = df["distance_km"] / 1000.0
-        print("ℹ️ Apple: distance_km enthielt offenbar Meter → in Kilometer umgerechnet (/1000).")
+        print(
+            "ℹ️ Apple: distance_km enthielt offenbar Meter → in Kilometer umgerechnet (/1000)."
+        )
 
     # 5) Kategorien
     df["activity_type"] = df["activity_type"].astype("category")
@@ -856,8 +905,15 @@ def clean_apple_typing(df):
 
     # 6) Spaltenreihenfolge sichern (falls etwas fehlte, auffüllen)
     core_cols = [
-        "date", "activity_type", "distance_km", "duration_sec", "calories",
-        "avg_heart_rate", "max_heart_rate", "source", "export_date"
+        "date",
+        "activity_type",
+        "distance_km",
+        "duration_sec",
+        "calories",
+        "avg_heart_rate",
+        "max_heart_rate",
+        "source",
+        "export_date",
     ]
     for c in core_cols:
         if c not in df.columns:
@@ -865,8 +921,22 @@ def clean_apple_typing(df):
     df = df[core_cols].copy()
 
     # 7) Status
-    print("\n✅ Apple: Typisierung & Einheiten abgeschlossen (inkl. Schema-Umbenennung).")
-    print(df[["distance_km", "duration_sec", "calories", "avg_heart_rate", "max_heart_rate"]].describe().T.round(2))
+    print(
+        "\n✅ Apple: Typisierung & Einheiten abgeschlossen (inkl. Schema-Umbenennung)."
+    )
+    print(
+        df[
+            [
+                "distance_km",
+                "duration_sec",
+                "calories",
+                "avg_heart_rate",
+                "max_heart_rate",
+            ]
+        ]
+        .describe()
+        .T.round(2)
+    )
 
     return df
 
@@ -880,6 +950,7 @@ apple_df_typed = clean_apple_typing(apple_df)
 ```{python}
 #| ExecuteTime: {end_time: '2025-10-11T08:17:19.354727Z', start_time: '2025-10-11T08:17:19.266826Z'}
 # nutzt die gleichen Helper wie Garmin: _build_distance_bins, _build_hr_bins_per_source, _impute_grouped_calories
+
 
 def clean_apple_data(df):
     """
@@ -897,10 +968,13 @@ def clean_apple_data(df):
     # 0.1 Date-Fallback: (seltener nötig als bei Garmin) – aus export_date + 12h
     before_date_nan = df["date"].isna().sum()
     mask_date_missing = df["date"].isna() & df["export_date"].notna()
-    df.loc[mask_date_missing, "date"] = df.loc[mask_date_missing, "export_date"] + pd.Timedelta(hours=12)
+    df.loc[mask_date_missing, "date"] = df.loc[
+        mask_date_missing, "export_date"
+    ] + pd.Timedelta(hours=12)
     after_date_nan = df["date"].isna().sum()
     print(
-        f"Date-Imputation (Apple): NaN {before_date_nan}→{after_date_nan} (aus export_date gesetzt: {mask_date_missing.sum()})")
+        f"Date-Imputation (Apple): NaN {before_date_nan}→{after_date_nan} (aus export_date gesetzt: {mask_date_missing.sum()})"
+    )
 
     # 1) Duplikate (quellenweise)
     before = len(df)
@@ -914,10 +988,9 @@ def clean_apple_data(df):
 
     # 3) Plausibilitätsgrenzen (soft, wie bei Garmin)
     before = len(df)
-    mask_plaus = (
-            df["distance_km"].between(0.05, 60, inclusive="both") &
-            df["duration_sec"].between(60, 18000, inclusive="both")
-    )
+    mask_plaus = df["distance_km"].between(0.05, 60, inclusive="both") & df[
+        "duration_sec"
+    ].between(60, 18000, inclusive="both")
     df = df[mask_plaus].copy()
     print(f"Unplausible Distanz/Dauer entfernt: {before - len(df)}")
 
@@ -931,11 +1004,18 @@ def clean_apple_data(df):
     before_nan_avg = df["avg_heart_rate"].isna().sum()
     before_nan_max = df["max_heart_rate"].isna().sum()
 
-    df.loc[(df["avg_heart_rate"] <= 0) | (df["avg_heart_rate"] > 300), "avg_heart_rate"] = np.nan
-    df.loc[(df["max_heart_rate"] <= 0) | (df["max_heart_rate"] > 300), "max_heart_rate"] = np.nan
+    df.loc[
+        (df["avg_heart_rate"] <= 0) | (df["avg_heart_rate"] > 300), "avg_heart_rate"
+    ] = np.nan
+    df.loc[
+        (df["max_heart_rate"] <= 0) | (df["max_heart_rate"] > 300), "max_heart_rate"
+    ] = np.nan
 
-    mask_inverted = (df["max_heart_rate"].notna() & df["avg_heart_rate"].notna() &
-                     (df["max_heart_rate"] < df["avg_heart_rate"]))
+    mask_inverted = (
+        df["max_heart_rate"].notna()
+        & df["avg_heart_rate"].notna()
+        & (df["max_heart_rate"] < df["avg_heart_rate"])
+    )
     tol_mask = mask_inverted & ((df["avg_heart_rate"] - df["max_heart_rate"]) <= 3)
     df.loc[tol_mask, "max_heart_rate"] = df.loc[tol_mask, "avg_heart_rate"]
     hard_conflict = mask_inverted & ~tol_mask
@@ -956,7 +1036,9 @@ def clean_apple_data(df):
 
     # 6) Kalorien: fehlerhafte/fehlende Werte gruppenbasiert imputieren (Distanz×HF)
     df["calories"] = pd.to_numeric(df["calories"], errors="coerce")
-    before_bad_cal = df["calories"].isna().sum() + (df["calories"] <= 0).fillna(False).sum()
+    before_bad_cal = (
+        df["calories"].isna().sum() + (df["calories"] <= 0).fillna(False).sum()
+    )
 
     df.loc[df["calories"] <= 0, "calories"] = np.nan
     cal_before_impute_nan = df["calories"].isna().sum()
@@ -994,13 +1076,6 @@ def clean_apple_data(df):
 # Apple-Bereinigung ausführen
 apple_clean = clean_apple_data(apple_df_typed)
 ```
-
-
-
-## LE3: Transformieren
-
-
-
 
 ## LE4: Verknüpfen
 
