@@ -219,6 +219,7 @@ Dieses Kapitel implementiert einen Best-Practice-Ansatz für Data Cleaning mit:
 ### 2.0 Konfiguration & Infrastruktur
 
 #### 2.0.1 Zentrale Konfiguration
+Die Klasse DataCleaningConfig kapselt alle Schwellenwerte und Parameter für die Datenbereinigung. Dadurch sind Anpassungen zentral möglich, ohne den Code zu verändern.
 
 ```{python}
 class DataCleaningConfig:
@@ -265,6 +266,10 @@ print(f"   Herzfrequenz: {config.HR_MIN}–{config.HR_MAX} bpm")
 ```
 
 #### 2.0.2 Logging & Reporting Infrastructure
+
+Es wird wird ein Standard-Logger eingerichtet, der alle Bereinigungsschritte und Entscheidungen protokolliert.
+
+Die CleaningReport-Klasse sammelt Metriken zu entfernten/angepassten Zeilen, um die Datenqualität zu überwachen. 
 
 ```{python}
 import logging
@@ -345,7 +350,10 @@ print("Logging & Reporting Infrastructure initialisiert")
 
 #### 2.0.3 Modularisierte Validatoren
 
-Wiederverwendbare Validierungsfunktionen für konsistente Datenqualitätsprüfung über alle Quellen hinweg.
+Die `DataValidator`-Klasse ist das **Herzstück der Datenqualitätsprüfung**. Sie kapselt alle Validierungsregeln für Laufdaten in wiederverwendbare, statische Methoden. Für jede Methode wird eine spezifische Regel implementiert, die eine boolesche Maske zurückgibt, welche Zeilen die Regel nicht erfüllen.
+
+**Verwendung in der Pipeline:**
+Diese Validatoren werden in `step_validate_plausibility()` kombiniert, um Zeilen mit unrealistischen Werten zu filtern.
 
 ```{python}
 class DataValidator:
@@ -410,6 +418,34 @@ print("✅ Validatoren definiert")
 ```
 
 #### 2.0.4 Helper-Funktionen für Imputation
+
+Hier werden Helper Funktionen definiert, für das Handling von fehlenden Kalorienwerten basierend auf Distanz und Dauer.
+
+
+**Ablauf:**
+1. **Binning**: Distanz-Kategorien + HR-Quartile je Quelle erstellen
+2. **Fehlerkennung**: Werte ≤0 oder NaN → als fehlend markieren
+3. **Median-Lookup**: 4-stufige Fallback-Kette für jeden fehlenden Wert
+4. **Tracking**: 
+   - `calories_imputed` (Boolean): Wurde imputiert?
+   - `imputation_level` (String): Auf welcher Ebene?
+5. **Logging**: Zusammenfassung der verwendeten Imputation-Levels
+6. **Cleanup**: Temporäre Hilfsspalten (`_dist_bin`, `_hr_bin`) entfernen
+
+
+| Level | Gruppierung | Präzision | Fallback bei |
+|-------|------------|-----------|--------------|
+| **Level 3** | source + dist_bin + hr_bin | Höchste | Gruppe leer |
+| **Level 2** | source + dist_bin | Hoch | Gruppe leer |
+| **Level 1** | source | Mittel | Gruppe leer |
+| **Level 0** | Global (gesamter Datensatz) | Niedrig | Immer verfügbar |
+
+
+**Vorteile:**
+- **Sportphysiologisch sinnvoll**: Kalorien korrelieren mit Distanz × Intensität (HR)
+- **Robustheit**: Fallback-Kette verhindert fehlgeschlagene Imputation
+- **Transparenz**: Tracking ermöglicht Audit Trail und Qualitätsbewertung
+- **Quellenspezifisch**: Berücksichtigt unterschiedliche Kalibrierungen (Garmin vs. Apple)
 
 ```{python}
 #| ExecuteTime: {end_time: '2025-10-11T08:17:18.438087Z', start_time: '2025-10-11T08:17:18.429868Z'}
@@ -545,7 +581,54 @@ print("✅ Imputation Helper-Funktionen definiert")
 
 #### 2.0.5 Pipeline-Pattern
 
-Robuste Cleaning Pipeline mit strukturierter Fehlerbehandlung und Schritt-Dokumentation.
+Das **Pipeline-Pattern** orchestriert alle Bereinigungsschritte in einer robusten, nachvollziehbaren Sequenz. Es besteht aus zwei Klassen: `CleaningStep` (definiert einzelne Schritte) und `DataCleaningPipeline` (führt Schritte aus).
+
+**Komponenten:**
+
+**1. `CleaningStep` (Dataclass)**
+- **name**: Eindeutiger Schrittname (z.B. "Remove Duplicates")
+- **function**: Die auszuführende Funktion (z.B. `step_remove_duplicates`)
+- **description**: Lesbare Beschreibung für Dokumentation
+- **is_critical**: Wenn ein Fehler auftritt, soll die Pipeline stoppen (True) oder weiterlaufen (False)
+
+**2. `DataCleaningPipeline` (Orchestrator)**
+- **`__init__(source, config)`**: Initialisiert Pipeline mit Quelle ("Garmin"/"Apple") und Konfiguration
+- **`add_step(step)`**: Fügt CleaningStep hinzu (Fluent Interface → Method Chaining möglich)
+- **`run(df)`**: Führt alle Schritte sequenziell aus und gibt (cleaned_df, report) zurück
+
+**Ablauf der `run()`-Methode:**
+
+1. **Initialisierung**: Speichert initial_rows, erstellt DataFrame-Kopie
+2. **Für jeden Schritt**:
+   - Loggt Start: "[1/8] Starting: Date Imputation"
+   - Misst rows_before
+   - Führt step.function(df, config, report) aus
+   - Misst rows_after
+   - Dokumentiert in CleaningReport
+   - **Fehlerbehandlung**:
+     - `is_critical=True` → Pipeline stoppt bei Fehler
+     - `is_critical=False` → Warnung, Pipeline läuft weiter
+3. **Finalisierung**: Speichert final_rows, loggt Completion
+
+---
+
+**Fehlerbehandlung:**
+
+| Schritt-Typ | Fehler-Strategie | Beispiel |
+|-------------|------------------|----------|
+| **Critical** | Pipeline stoppt sofort | "Validate Essentials" (Pflichtfelder fehlen) |
+| **Non-Critical** | Warnung, weiterlaufen | "Calories Imputation" (kann später imputiert werden) |
+
+---
+
+**Vorteile:**
+
+- **Modularität**: Jeder Schritt ist unabhängig testbar und wiederverwendbar
+- **Wiederverwendbarkeit**: Gleiche Pipeline für Garmin und Apple (8 identische Schritte)
+- **Fehlertoleranz**: Nicht-kritische Schritte können fehlschlagen ohne Pipeline-Abbruch
+- **Transparenz**: Jeder Schritt wird geloggt und im CleaningReport dokumentiert
+- **Audit Trail**: Vollständige Nachvollziehbarkeit aller Bereinigungsschritte
+- **Fluent API**: Method Chaining (`.add_step().add_step()`) macht Code lesbar
 
 ```{python}
 @dataclass
@@ -570,7 +653,7 @@ class DataCleaningPipeline:
     def add_step(self, step: CleaningStep):
         """Fügt einen Schritt zur Pipeline hinzu"""
         self.steps.append(step)
-        return self
+        return self  # Diese Zeile ermöglicht Method Chaining
 
     def run(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, CleaningReport]:
         """
@@ -620,6 +703,34 @@ print("✅ Pipeline-Pattern definiert")
 ```
 
 #### 2.0.6 Datenqualitäts-Metriken
+
+Die `DataQualityChecker`-Klasse bewertet die Datenqualität nach bereinigten Datensätzen anhand etablierter **Data Quality Dimensions**. [Definition zu Data Quality Dimensions](https://dqops.com/docs/dqo-concepts/data-quality-dimensions/). 
+
+Sie liefert quantifizierbare Metriken für Qualitätssicherung.
+
+**Verwendung in der Pipeline:**
+Nach Abschluss der Bereinigung wird `assess_quality()` aufgerufen, um die Qualität des finalen Datensatzes zu messen und zu dokumentieren.
+
+**Ablauf:**
+
+1. **assess_quality()**: Berechnet Metriken für alle 4 Qualitätsdimensionen
+2. **quality_report()**: Formatiert die Metriken als DataFrame mit Status-Indikatoren
+
+**Qualitätsdimensionen:**
+
+| Dimension | Berechnung | Beispiel-Metrik | Bedeutung |
+|-----------|------------|-----------------|-----------|
+| **Completeness** | `1 - (NaN / total)` pro Spalte | `distance_km: 0.98` | 98% der Distanzwerte vorhanden |
+| **Validity** | Anteil plausibel mittels `DataValidator` | `pace: 0.95` | 95% der Pace-Werte in realistischem Bereich |
+| **Consistency** | Logische Konsistenz zwischen Variablen | `hr_max_vs_avg: 0.99` | 99% konsistent (max ≥ avg) |
+| **Uniqueness** | `1 - (duplicates / total)` | `workouts: 1.0` | Keine Duplikate vorhanden |
+
+**Vorteile:**
+
+- **Standardisiert**: Nutzt etablierte Data Quality Framework-Dimensionen
+- **Automatisiert**: Keine manuelle Inspektion nötig
+- **Vergleichbar**: Konsistente Metriken über Garmin und Apple hinweg
+- **Actionable**: Status-Indikatoren (✅ ≥95%, ⚠️ 85-95%, ❌ <85%) zeigen Handlungsbedarf
 
 ```{python}
 class DataQualityChecker:
@@ -705,7 +816,23 @@ print("✅ Datenqualitäts-Checker definiert")
 
 #### 2.0.7 Modularisierte Bereinigungsschritte
 
-Einzelne, wiederverwendbare Funktionen für jeden Bereinigungsschritt.
+Die **8 Bereinigungsfunktionen** sind als eigenständige, wiederverwendbare Module implementiert. Jede Funktion erhält `(df, config, report)` und gibt einen bereinigten DataFrame zurück.
+
+**Verwendung in der Pipeline:**
+Diese Funktionen werden in `DataCleaningPipeline` über `CleaningStep`-Objekte eingefügt und sequenziell ausgeführt.
+
+**Die 8 Bereinigungsschritte:**
+
+| # | Funktion | Beschreibung |
+|---|----------|--------------|
+| **1** | `step_impute_dates()` | Imputiert fehlende `date`-Werte aus `export_date` (Ordnername), um Datenverlust zu vermeiden |
+| **2** | `step_remove_duplicates()` | Entfernt Duplikate basierend auf `(source, date, distance_km, duration_sec)` |
+| **3** | `step_validate_essentials()` | Droppt Zeilen ohne `distance_km` oder `duration_sec` (essenzielle Metriken) |
+| **4** | `step_validate_plausibility()` | Filtert unrealistische Werte für Distanz, Dauer und Pace mittels `DataValidator` |
+| **5** | `step_clean_heart_rate()` | Bereinigt HR-Werte (Plausibilität, Konsistenz max≥avg), imputiert fehlende Werte mit Median |
+| **6** | `step_impute_calories()` | Gruppenbasierte Imputation (4-Level-Fallback) + Winsorising für Kalorien |
+| **7** | `step_final_hr_sweep()` | Entfernt Zeilen mit physiologisch unrealistischen Herzfrequenzwerten (80–210 bpm) |
+| **8** | `step_finalize_types()` | Setzt finale Datentypen (`category` für activity_type und source) |
 
 ```{python}
 # Step 1: Date Imputation
@@ -744,22 +871,24 @@ def step_validate_essentials(
 
 
 # Step 4: Plausibility Checks
-def step_validate_plausibility(
-    df: pd.DataFrame, config: DataCleaningConfig, report: CleaningReport
-) -> pd.DataFrame:
-    """Applies all plausibility checks"""
+def step_validate_plausibility(df, config, report):
     validator = DataValidator()
 
-    mask = (
-        validator.validate_distance(df, config)
-        & validator.validate_duration(df, config)
-        & validator.validate_pace(df, config)
-    )
+    # Masken einmal berechnen
+    mask_dist = validator.validate_distance(df, config)
+    mask_dur = validator.validate_duration(df, config)
+    mask_pace = validator.validate_pace(df, config)
 
+    # Kombinierte Maske
+    mask = mask_dist & mask_dur & mask_pace
+
+    # Statistik aus gecachten Masken
     removed_reasons = {
-        "distance": (~validator.validate_distance(df, config)).sum(),
-        "duration": (~validator.validate_duration(df, config)).sum(),
-        "pace": (~validator.validate_pace(df, config)).sum(),
+        "distance": (
+            ~mask_dist
+        ).sum(),  # Das Zeichen "~" steht für die Negation der Maske, also die Anzahl der fehlerhaften Einträge
+        "duration": (~mask_dur).sum(),
+        "pace": (~mask_pace).sum(),
     }
 
     logger.info(f"Plausibility failures by reason: {removed_reasons}")
