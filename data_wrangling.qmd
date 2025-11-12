@@ -3,8 +3,9 @@ title: Data Wrangler
 jupyter: python3
 ---
 
+
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:04.157420Z', start_time: '2025-10-11T08:17:03.319483Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:01.841948Z', start_time: '2025-11-12T19:08:01.409298Z'}
 import pandas as pd
 import numpy as np
 from lxml import etree  # lxml, da grosse dateien bei apple
@@ -30,7 +31,7 @@ Besondere Herausforderungen:
 Lösung: Multi-Encoding-Parser mit automatischer Erkennung und Spalten-Standardisierung.
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:04.178944Z', start_time: '2025-10-11T08:17:04.171357Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:01.857754Z', start_time: '2025-11-12T19:08:01.851902Z'}
 def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
     """
     Import all Garmin CSV files and combine into single DataFrame
@@ -82,7 +83,7 @@ def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
 ```
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:05.148559Z', start_time: '2025-10-11T08:17:05.095692Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:01.887374Z', start_time: '2025-11-12T19:08:01.862303Z'}
 # Test the function
 garmin_df = import_garmin_activities()
 print(f"Garmin activities imported: {len(garmin_df)}")
@@ -116,7 +117,7 @@ Damit wird der Import ressourcenschonend, das Schema bleibt schlank, und die Dat
 **Import-Strategie erfolgreich**: Separate DataFrames ermöglichen individuelle Bereinigung (LE2) und flexible Join-Strategien (LE4).
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.344756Z', start_time: '2025-10-11T08:17:05.441150Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:15.944692Z', start_time: '2025-11-12T19:08:01.941546Z'}
 def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
     """
     Apple Health Workouts roh importieren.
@@ -201,7 +202,7 @@ apple_df_raw = import_apple_workouts()
 ```
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.405244Z', start_time: '2025-10-11T08:17:18.394700Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.086863Z', start_time: '2025-11-12T19:08:16.076186Z'}
 apple_df_raw.head(132)
 ```
 
@@ -222,6 +223,7 @@ Dieses Kapitel implementiert einen Best-Practice-Ansatz für Data Cleaning mit:
 Die Klasse DataCleaningConfig kapselt alle Schwellenwerte und Parameter für die Datenbereinigung. Dadurch sind Anpassungen zentral möglich, ohne den Code zu verändern.
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.224330Z', start_time: '2025-11-12T19:08:16.218647Z'}
 class DataCleaningConfig:
     """
     Zentrale Konfiguration für Data Cleaning Parameter.
@@ -272,6 +274,7 @@ Es wird wird ein Standard-Logger eingerichtet, der alle Bereinigungsschritte und
 Die CleaningReport-Klasse sammelt Metriken zu entfernten/angepassten Zeilen, um die Datenqualität zu überwachen. 
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.359392Z', start_time: '2025-11-12T19:08:16.351279Z'}
 import logging
 from datetime import datetime
 from typing import Callable, List, Tuple, Dict
@@ -356,6 +359,7 @@ Die `DataValidator`-Klasse ist das **Herzstück der Datenqualitätsprüfung**. S
 Diese Validatoren werden in `step_validate_plausibility()` kombiniert, um Zeilen mit unrealistischen Werten zu filtern.
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.437011Z', start_time: '2025-11-12T19:08:16.430296Z'}
 class DataValidator:
     """Zentrale Validatoren für Running-Daten"""
 
@@ -448,7 +452,7 @@ Hier werden Helper Funktionen definiert, für das Handling von fehlenden Kalorie
 - **Quellenspezifisch**: Berücksichtigt unterschiedliche Kalibrierungen (Garmin vs. Apple)
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.438087Z', start_time: '2025-10-11T08:17:18.429868Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.520802Z', start_time: '2025-11-12T19:08:16.511617Z'}
 def _build_distance_bins(s: pd.Series, config: DataCleaningConfig):
     """
     Bins für Distanz basierend auf Konfiguration.
@@ -631,6 +635,7 @@ Das **Pipeline-Pattern** orchestriert alle Bereinigungsschritte in einer robuste
 - **Fluent API**: Method Chaining (`.add_step().add_step()`) macht Code lesbar
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.575239Z', start_time: '2025-11-12T19:08:16.564771Z'}
 @dataclass
 class CleaningStep:
     """Definition eines Bereinigungsschritts"""
@@ -733,6 +738,7 @@ Nach Abschluss der Bereinigung wird `assess_quality()` aufgerufen, um die Qualit
 - **Actionable**: Status-Indikatoren (✅ ≥95%, ⚠️ 85-95%, ❌ <85%) zeigen Handlungsbedarf
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.644848Z', start_time: '2025-11-12T19:08:16.634182Z'}
 class DataQualityChecker:
     """Automated data quality assessment"""
 
@@ -835,6 +841,7 @@ Diese Funktionen werden in `DataCleaningPipeline` über `CleaningStep`-Objekte e
 | **8** | `step_finalize_types()` | Setzt finale Datentypen (`category` für activity_type und source) |
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.750216Z', start_time: '2025-11-12T19:08:16.726626Z'}
 # Step 1: Date Imputation
 def step_impute_dates(
     df: pd.DataFrame, config: DataCleaningConfig, report: CleaningReport
@@ -1105,7 +1112,7 @@ Alle Verarbeitungsschritte sind in der Funktion `clean_garmin_data()` dokumentie
 #### 2.1.1 Filter nach Laufsport
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.637682Z', start_time: '2025-10-11T08:17:18.620736Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.810931Z', start_time: '2025-11-12T19:08:16.790853Z'}
 # Garmin-Daten importieren und filtern
 garmin_df = import_garmin_activities()
 
@@ -1147,7 +1154,7 @@ logger.info(f"Garmin: Reduktion auf {len(core_cols)} Kernvariablen abgeschlossen
 #### 2.1.2 Typisierung und Einheiten
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.894407Z', start_time: '2025-10-11T08:17:18.880992Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.875278Z', start_time: '2025-11-12T19:08:16.836943Z'}
 def convert_duration_to_seconds(duration_str):
     """
     Converts Garmin duration strings ('hh:mm:ss' or 'mm:ss') into total seconds.
@@ -1216,7 +1223,7 @@ garmin_df_typed = clean_garmin_typing(garmin_df_core)
 #### 2.1.3 Pipeline-basierte Bereinigung
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:19.050346Z', start_time: '2025-10-11T08:17:18.975031Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:16.972776Z', start_time: '2025-11-12T19:08:16.899849Z'}
 # Garmin Cleaning Pipeline aufbauen
 garmin_pipeline = DataCleaningPipeline("Garmin", config)
 
@@ -1285,6 +1292,7 @@ garmin_clean, garmin_report = garmin_pipeline.run(garmin_df_typed)
 #### 2.1.4 Qualitätsbewertung & Report
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:17.005057Z', start_time: '2025-11-12T19:08:16.985762Z'}
 # Summary anzeigen
 garmin_summary = garmin_report.summary()
 
@@ -1318,7 +1326,7 @@ Identische Pipeline-basierte Bereinigung wie Garmin für konsistente Datenqualit
 #### 2.2.1 Filter nach Laufsport
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:19.090477Z', start_time: '2025-10-11T08:17:19.082415Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:31.405112Z', start_time: '2025-11-12T19:08:17.057721Z'}
 # Apple-Daten importieren und filtern
 apple_df_raw = import_apple_workouts()
 
@@ -1337,7 +1345,7 @@ print(apple_df["activity_type"].value_counts())
 Apple Health hat unterschiedliche Einheitenkonventionen als Garmin:
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:19.213900Z', start_time: '2025-10-11T08:17:19.177636Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:31.585953Z', start_time: '2025-11-12T19:08:31.547977Z'}
 def clean_apple_typing(df):
     """
     Bringt den gefilterten Apple-Frame ins harmonisierte Schema
@@ -1361,9 +1369,23 @@ def clean_apple_typing(df):
     if rename_map:
         df.rename(columns=rename_map, inplace=True)
 
-    # 2️⃣ Datumsfelder
+    # 2️⃣ Datumsfeld (vereinheitlicht auf Garmin-Format "YYYY-MM-DD HH:MM:SS")
     df["date"] = pd.to_datetime(df.get("date"), errors="coerce")
+
+    # vorhandene tz-Infos entfernen, ohne Umrechnung
+    mask = df["date"].notna() & df["date"].apply(lambda x: getattr(x, "tzinfo", None) is not None)
+    if mask.any():
+        df.loc[mask, "date"] = df.loc[mask, "date"].dt.tz_localize(None)
+
+    # sicherstellen, dass es wirklich datetime64[ns] ist
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    # Format angleichen an Garmin
+    df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    # export_date kann bleiben wie er ist
     df["export_date"] = pd.to_datetime(df.get("export_date"), errors="coerce")
+
 
     # 3️⃣ Numerik casten
     num_cols = [
@@ -1435,7 +1457,7 @@ apple_df_typed = clean_apple_typing(apple_df)
 Identische Pipeline wie Garmin für konsistente Datenqualität über alle Quellen hinweg.
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:19.354727Z', start_time: '2025-10-11T08:17:19.266826Z'}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:31.709152Z', start_time: '2025-11-12T19:08:31.651063Z'}
 # Apple Cleaning Pipeline aufbauen (identisch zu Garmin)
 apple_pipeline = DataCleaningPipeline("Apple", config)
 
@@ -1504,6 +1526,7 @@ apple_clean, apple_report = apple_pipeline.run(apple_df_typed)
 #### 2.2.4 Qualitätsbewertung & Report
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:31.742357Z', start_time: '2025-11-12T19:08:31.725220Z'}
 # Summary anzeigen
 apple_summary = apple_report.summary()
 
@@ -1528,6 +1551,7 @@ apple_clean.head()
 Vergleich der Bereinigungsergebnisse zwischen Garmin und Apple Health.
 
 ```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:31.813615Z', start_time: '2025-11-12T19:08:31.799351Z'}
 # Vergleichstabelle erstellen
 comparison_data = {
     "Metrik": [
@@ -1579,42 +1603,42 @@ print(f"\n   → Daten sind jetzt vergleichbar und für Analyse bereit! ✨")
 
 ---
 
-## 🎯 Kapitel 2 Zusammenfassung: Best Practices implementiert
+#### 🎯 Kapitel 2 Zusammenfassung: Best Practices implementiert
 
-### Erreichte Verbesserungen:
+**Erreichte Verbesserungen:**
 
-#### 1️⃣ **Zentrale Konfiguration** (`DataCleaningConfig`)
+ 1️⃣ **Zentrale Konfiguration** (`DataCleaningConfig`)
 - Alle Schwellenwerte an einem Ort
 - Leicht anpassbar für verschiedene Anforderungen
 - Dokumentierte Parameter
 
-#### 2️⃣ **Strukturiertes Logging & Reporting**
+ 2️⃣ **Strukturiertes Logging & Reporting**
 - `CleaningReport`: Detaillierte Schritt-Dokumentation
 - Retention Rates für jeden Schritt
 - Exportierbare Berichte für Audit Trail
 
-#### 3️⃣ **Modularisierte Validatoren** (`DataValidator`)
+ 3️⃣ **Modularisierte Validatoren** (`DataValidator`)
 - Wiederverwendbare Validierungsfunktionen
 - Konsistente Prüfungen über alle Quellen
 - Testbare Einzelkomponenten
 
-#### 4️⃣ **Pipeline-Pattern** (`DataCleaningPipeline`)
+ 4️⃣ **Pipeline-Pattern** (`DataCleaningPipeline`)
 - Robuste Fehlerbehandlung
 - Kritische vs. nicht-kritische Schritte
 - Identische Pipeline für Garmin + Apple
 
-#### 5️⃣ **Transparente Imputation**
+ 5️⃣ **Transparente Imputation**
 - Tracking welche Werte imputiert wurden
 - Dokumentation der Imputation-Levels
 - Gruppenbasierte Median-Strategie
 
-#### 6️⃣ **Automatische Qualitätsmetriken** (`DataQualityChecker`)
+ 6️⃣ **Automatische Qualitätsmetriken** (`DataQualityChecker`)
 - Completeness (Vollständigkeit)
 - Validity (Plausibilität)
 - Consistency (Konsistenz)
 - Uniqueness (Eindeutigkeit)
 
-#### 7️⃣ **8 Modularisierte Bereinigungsschritte**
+ 7️⃣ **8 Modularisierte Bereinigungsschritte**
 1. Date Imputation
 2. Remove Duplicates
 3. Validate Essentials
@@ -1624,7 +1648,7 @@ print(f"\n   → Daten sind jetzt vergleichbar und für Analyse bereit! ✨")
 7. Final HR Sweep
 8. Finalize Types
 
-### Vorteile:
+ Vorteile:
 
 ✅ **Wartbarkeit**: Zentrale Konfiguration, modularer Code  
 ✅ **Nachvollziehbarkeit**: Strukturiertes Logging, detaillierte Reports  
@@ -1636,15 +1660,42 @@ print(f"\n   → Daten sind jetzt vergleichbar und für Analyse bereit! ✨")
 
 ---
 
+ LE4: Verknüpfen
+
+
+
+
+ LE5: Datenpipelines
+
+
+
+
+ LE6: Reproduzierbarkeit
+
+
 ## LE4: Verknüpfen
 
 
+**2.0 Zusammenführung der Datenquellen**
 
+Strategie:
 
-## LE5: Datenpipelines
+Nach Abschluss der Quell-spezifischen Pipelines (Garmin & Apple) erfolgt die Zusammenführung beider harmonisierter Datensätze zu einem einheitlichen Frame für Analyse und Visualisierung.
 
+Wichtige Lernpunkte:
 
+- Da jeder Lauf separat gemessen wird, machen **joins** keinen Sinn, da in unserem Szenario eine Person nicht parallel Garmin und Apple Messgeräte verwendet (keine 1:1-Beziehung).
+- Stattdessen wird eine **Konkatenation** (Vertikales Zusammenfügen) durchgeführt.
+- Der Import und die Zusammenführung (Concatenation) gehört nicht mehr in die Pipeline,
+sondern ist ein vor- resp. nachgelagerter Schritt.
 
+```{python}
+#| ExecuteTime: {end_time: '2025-11-12T19:08:32.032218Z', start_time: '2025-11-12T19:08:32.018040Z'}
+combined_no_dedupe = (pd.concat([garmin_clean, apple_clean], ignore_index=True)
+                      .sort_values("date", kind="stable"))
 
-## LE6: Reproduzierbarkeit
+print(len(combined_no_dedupe))
+print(combined_no_dedupe)# sollte Garmin + Apple ergeben
+```
+
 
