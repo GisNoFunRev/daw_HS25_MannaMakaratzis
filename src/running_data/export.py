@@ -3,11 +3,11 @@
 Der kombinierte Datensatz wird in zwei Formaten abgelegt, weil sie
 unterschiedliche Zwecke erfüllen:
 
-**Parquet** ist das massgebliche Format für die Weiterverarbeitung. Es
-speichert die Datentypen mit — ``date`` bleibt ein Zeitstempel,
-``activity_type`` bleibt kategorial — und ist deutlich kompakter.
+Parquet ist das massgebliche Format für die Weiterverarbeitung. Es
+speichert die Datentypen mit — date bleibt ein Zeitstempel,
+activity_type bleibt kategorial — und ist deutlich kompakter.
 
-**CSV** ist die Kontrollkopie: in jedem Editor lesbar und ohne
+CSV ist die Kontrollkopie: in jedem Editor lesbar und ohne
 Spezialwerkzeug prüfbar. Datentypen gehen dabei verloren, weshalb CSV nicht
 als Eingang für weitere Verarbeitungsschritte dienen sollte.
 """
@@ -21,11 +21,11 @@ from .paths import PROCESSED_DIR
 
 logger = get_logger(__name__)
 
-#: Basisname der Ausgabedateien, ohne Endung.
+# Basisname der Ausgabedateien, ohne Endung.
 OUTPUT_BASENAME = "combined_runs"
 
-#: Parquet-Engine. Als Abhängigkeit in requirements.txt und pyproject.toml
-#: geführt, da sie nicht Teil von pandas ist.
+# Parquet-Engine. Als Abhängigkeit in requirements.txt und pyproject.toml
+# geführt, da sie nicht Teil von pandas ist.
 PARQUET_ENGINE = "pyarrow"
 
 
@@ -41,12 +41,12 @@ def write_outputs(
     Args:
         df: Der zu persistierende Datensatz.
         output_dir: Zielordner. Standard ist
-            :data:`running_data.paths.PROCESSED_DIR`.
+            running_data.paths.PROCESSED_DIR.
         basename: Dateiname ohne Endung.
 
     Returns:
-        Die geschriebenen Pfade unter den Schlüsseln ``"parquet"`` und
-        ``"csv"``.
+        Die geschriebenen Pfade unter den Schlüsseln "parquet" und
+        "csv".
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 

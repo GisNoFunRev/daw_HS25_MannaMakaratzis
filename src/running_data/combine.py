@@ -9,7 +9,7 @@ Apple-Uhr, nie beide gleichzeitig. Jeder Lauf existiert also in genau einer
 Quelle, und es gibt keine gemeinsamen Schlüssel, über die sich Zeilen paaren
 liessen.
 
-Fachlich richtig ist deshalb die **Konkatenation**: Beide Quellen liefern
+Fachlich richtig ist deshalb die Konkatenation: Beide Quellen liefern
 gleichartige Beobachtungen, die untereinander gehängt werden. Ein Join würde
 hier ein Kreuzprodukt oder überwiegend leere Zeilen erzeugen.
 
@@ -39,13 +39,13 @@ def concat_sources(
             pro Quelle.
         sort_by: Spalte, nach der das Ergebnis sortiert wird. Die Sortierung
             ist stabil, die Reihenfolge innerhalb desselben Zeitstempels
-            entspricht also der Reihenfolge in ``frames``.
+            entspricht also der Reihenfolge in frames.
 
     Returns:
         Der kombinierte, chronologisch sortierte Datensatz.
 
     Note:
-        Es wird bewusst **nicht** über Quellgrenzen hinweg dedupliziert. Zwei
+        Es wird bewusst nicht über Quellgrenzen hinweg dedupliziert. Zwei
         Läufe mit identischen Kennzahlen aus verschiedenen Quellen sind zwei
         eigenständige Beobachtungen; Duplikate innerhalb einer Quelle hat die
         Pipeline bereits entfernt.

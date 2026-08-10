@@ -11,20 +11,18 @@ Stattdessen wird der Median vergleichbarer Läufe verwendet. "Vergleichbar"
 heisst: gleiche Quelle, ähnliche Distanz, ähnliche Herzfrequenz. Weil eine so
 enge Gruppe leer sein kann, greift eine vierstufige Fallback-Kette:
 
-=======  ======================================  ===================
-Ebene    Gruppierung                             Genauigkeit
-=======  ======================================  ===================
-level3   source + Distanzklasse + HF-Quartil     am höchsten
-level2   source + Distanzklasse                  hoch
-level1   source                                  mittel
-level0   gesamter Datensatz                      niedrig, aber immer da
-=======  ======================================  ===================
+    Ebene    Gruppierung                          Genauigkeit
+    -------  -----------------------------------  ----------------------
+    level3   source + Distanzklasse + HF-Quartil  am höchsten
+    level2   source + Distanzklasse               hoch
+    level1   source                               mittel
+    level0   gesamter Datensatz                   niedrig, aber immer da
 
 Nachvollziehbarkeit
 -------------------
 Imputierte Werte sind keine Messwerte. Damit das in der Auswertung sichtbar
-bleibt, ergänzt die Imputation zwei Spalten: ``calories_imputed`` (wurde der
-Wert ersetzt?) und ``imputation_level`` (auf welcher Ebene?).
+bleibt, ergänzt die Imputation zwei Spalten: calories_imputed (wurde der
+Wert ersetzt?) und imputation_level (auf welcher Ebene?).
 """
 
 import numpy as np
@@ -41,7 +39,7 @@ def _build_distance_bins(s: pd.Series, config: DataCleaningConfig) -> pd.Series:
 
     Args:
         s: Distanzwerte in Kilometern.
-        config: Liefert die Klassengrenzen über ``DISTANCE_BINS``.
+        config: Liefert die Klassengrenzen über DISTANCE_BINS.
 
     Returns:
         Kategoriale Serie mit der Distanzklasse je Zeile.
@@ -53,7 +51,7 @@ def _build_distance_bins(s: pd.Series, config: DataCleaningConfig) -> pd.Series:
 def _build_hr_bins_per_source(
     df: pd.DataFrame, config: DataCleaningConfig, col: str = "avg_heart_rate"
 ) -> pd.Series:
-    """Bildet Herzfrequenz-Quantile **je Datenquelle**.
+    """Bildet Herzfrequenz-Quantile je Datenquelle.
 
     Die Quantile werden bewusst pro Quelle gebildet: Garmin- und Apple-Geräte
     messen unterschiedlich, ein quellenübergreifendes Quartil würde diese
@@ -64,12 +62,12 @@ def _build_hr_bins_per_source(
     zwei verschiedenen Werten bleibt die Klasse leer.
 
     Args:
-        df: Datensatz mit den Spalten ``source`` und ``col``.
-        config: Liefert die Anzahl Quantile über ``HR_QUANTILES``.
+        df: Datensatz mit den Spalten source und col.
+        config: Liefert die Anzahl Quantile über HR_QUANTILES.
         col: Name der Herzfrequenzspalte.
 
     Returns:
-        Serie mit den Klassencodes 1..n als ``float``; ``NaN``, wo keine
+        Serie mit den Klassencodes 1..n als float; NaN, wo keine
         Klasse gebildet werden konnte.
     """
     hr_bin = pd.Series(np.nan, index=df.index, dtype="float")
@@ -104,13 +102,13 @@ def impute_grouped_calories(
     """Füllt fehlende Kalorienwerte über die vierstufige Fallback-Kette.
 
     Args:
-        df: Datensatz mit den Spalten ``source``, ``distance_km``,
-            ``avg_heart_rate`` und ``calories``.
+        df: Datensatz mit den Spalten source, distance_km,
+            avg_heart_rate und calories.
         config: Klassengrenzen und Anzahl Quantile.
 
     Returns:
-        Kopie des Datensatzes mit gefüllter ``calories``-Spalte sowie den
-        Zusatzspalten ``calories_imputed`` und ``imputation_level``. Die
+        Kopie des Datensatzes mit gefüllter calories-Spalte sowie den
+        Zusatzspalten calories_imputed und imputation_level. Die
         temporären Klassenspalten werden wieder entfernt.
     """
     out = df.copy()

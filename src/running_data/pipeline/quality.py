@@ -1,20 +1,19 @@
 """Automatisierte Datenqualitäts-Metriken.
 
-Bewertet einen bereinigten Datensatz anhand von vier etablierten
-`Data Quality Dimensions <https://dqops.com/docs/dqo-concepts/data-quality-dimensions/>`_:
+Bewertet einen bereinigten Datensatz anhand von vier etablierten Data Quality
+Dimensions. Definition siehe
+https://dqops.com/docs/dqo-concepts/data-quality-dimensions/
 
-============== ==================================== ==========================
-Dimension      Berechnung                           Aussage
-============== ==================================== ==========================
-Completeness   ``1 - NaN-Anteil`` je Spalte         Wie vollständig?
-Validity       Anteil plausibler Werte              Wie realistisch?
-Consistency    Logik zwischen Variablen (max ≥ avg) Wie widerspruchsfrei?
-Uniqueness     ``1 - Duplikatanteil``               Wie eindeutig?
-============== ==================================== ==========================
+    Dimension      Berechnung                            Aussage
+    -------------  ------------------------------------  ---------------------
+    Completeness   1 - NaN-Anteil je Spalte              Wie vollständig?
+    Validity       Anteil plausibler Werte               Wie realistisch?
+    Consistency    Logik zwischen Variablen (max >= avg) Wie widerspruchsfrei?
+    Uniqueness     1 - Duplikatanteil                    Wie eindeutig?
 
 Wichtige Einschränkung
 ----------------------
-Completeness misst ausschliesslich, *ob* ein Wert vorhanden ist — nicht, ob er
+Completeness misst ausschliesslich, ob ein Wert vorhanden ist — nicht, ob er
 richtig ist. Ein Feld, das zu 100 % gefüllt ist, kann durchgehend falsche
 Werte enthalten und wird hier trotzdem mit ✅ ausgewiesen. Genau dieser Fall
 liegt beim Garmin-Datumsfeld vor (TODO 1): Die Werte sind vollständig, aber
@@ -28,7 +27,7 @@ import pandas as pd
 from ..config import DUPLICATE_KEY_COLUMNS, DataCleaningConfig
 from ..cleaning.validators import DataValidator
 
-#: Schwellen für die Statusanzeige im Qualitätsbericht.
+# Schwellen für die Statusanzeige im Qualitätsbericht.
 STATUS_GOOD_THRESHOLD = 0.95
 STATUS_WARNING_THRESHOLD = 0.85
 
@@ -48,7 +47,7 @@ class DataQualityChecker:
             config: Schwellenwerte für die Plausibilitätsprüfungen.
 
         Returns:
-            Verschachteltes Dictionary mit ``total_rows`` sowie je einem
+            Verschachteltes Dictionary mit total_rows sowie je einem
             Unter-Dictionary pro Dimension.
         """
         metrics: dict = {
@@ -98,11 +97,11 @@ class DataQualityChecker:
         """Formatiert die Metriken als Tabelle mit Statusindikator.
 
         Args:
-            metrics: Rückgabewert von :meth:`assess_quality`.
+            metrics: Rückgabewert von assess_quality.
 
         Returns:
-            DataFrame mit den Spalten ``category``, ``metric``, ``value`` und
-            ``status`` (✅ ab 95 %, ⚠️ ab 85 %, sonst ❌).
+            DataFrame mit den Spalten category, metric, value und
+            status (✅ ab 95 %, ⚠️ ab 85 %, sonst ❌).
         """
         records = []
 
@@ -145,13 +144,13 @@ def build_comparison_table(
 
     Args:
         summaries: Je Quellenname das Ergebnis von
-            :meth:`~running_data.pipeline.report.CleaningReport.summary`.
+            summary.
         qualities: Je Quellenname das Ergebnis von
-            :meth:`DataQualityChecker.assess_quality`. Muss dieselben
-            Schlüssel wie ``summaries`` haben.
+            DataQualityChecker.assess_quality. Muss dieselben
+            Schlüssel wie summaries haben.
 
     Returns:
-        DataFrame mit der Spalte ``Metrik`` und je einer Spalte pro Quelle.
+        DataFrame mit der Spalte Metrik und je einer Spalte pro Quelle.
     """
     if summaries.keys() != qualities.keys():
         raise ValueError(

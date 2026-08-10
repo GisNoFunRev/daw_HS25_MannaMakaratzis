@@ -3,7 +3,7 @@
 Der Bericht beantwortet die Frage, die bei jeder Datenbereinigung als erstes
 gestellt wird: *Wie viele Zeilen sind wo verloren gegangen und warum?*
 
-Jeder Pipeline-Schritt meldet über :meth:`CleaningReport.add_step`, wie viele
+Jeder Pipeline-Schritt meldet über CleaningReport.add_step, wie viele
 Zeilen er vorgefunden und wie viele er zurückgegeben hat. Daraus entsteht eine
 lückenlose Kette vom Rohdatensatz bis zum Ergebnis.
 """
@@ -21,7 +21,7 @@ class CleaningReport:
     """Sammelt die Schritt-für-Schritt-Statistik eines Pipeline-Laufs.
 
     Attributes:
-        source: Name der Datenquelle, z. B. ``"Garmin"``.
+        source: Name der Datenquelle, z. B. "Garmin".
         steps: Ein Eintrag je ausgeführtem Schritt.
         initial_rows: Zeilenzahl vor dem ersten Schritt.
         final_rows: Zeilenzahl nach dem letzten Schritt.
@@ -73,8 +73,8 @@ class CleaningReport:
         """Fasst den Lauf zusammen und protokolliert die Zusammenfassung.
 
         Returns:
-            Kennzahlen des Laufs: ``source``, ``initial_rows``,
-            ``final_rows``, ``total_removed`` und ``retention_rate``.
+            Kennzahlen des Laufs: source, initial_rows,
+            final_rows, total_removed und retention_rate.
         """
         total_removed = self.initial_rows - self.final_rows
         retention_rate = (

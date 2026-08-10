@@ -6,8 +6,8 @@ und durchlaufen dieselbe Pipeline.
 
 Einheitenkonventionen bei Garmin
 --------------------------------
-* **Dauer** als Text im Format ``hh:mm:ss`` oder ``mm:ss``.
-* **Distanz** je nach Exporteinstellung in Kilometern oder Metern.
+* Dauer als Text im Format hh:mm:ss oder mm:ss.
+* Distanz je nach Exporteinstellung in Kilometern oder Metern.
 """
 
 import numpy as np
@@ -22,13 +22,13 @@ from ..logging_setup import get_logger
 
 logger = get_logger(__name__)
 
-#: Teilstring, an dem Laufaktivitäten erkannt werden. Garmin verwendet
-#: mehrere Varianten ("Running", "Trail Running", "Treadmill Running"), die
-#: alle diesen Wortstamm enthalten.
+# Teilstring, an dem Laufaktivitäten erkannt werden. Garmin verwendet
+# mehrere Varianten ("Running", "Trail Running", "Treadmill Running"), die
+# alle diesen Wortstamm enthalten.
 RUNNING_KEYWORD = "run"
 
-#: Ab diesem Wert wird angenommen, dass die Distanz in Metern statt in
-#: Kilometern vorliegt. 200 km liegt oberhalb jeder plausiblen Laufdistanz.
+# Ab diesem Wert wird angenommen, dass die Distanz in Metern statt in
+# Kilometern vorliegt. 200 km liegt oberhalb jeder plausiblen Laufdistanz.
 METERS_HEURISTIC_THRESHOLD = 200
 
 
@@ -40,7 +40,7 @@ def filter_running(df: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         Nur die Zeilen mit einer Laufaktivität. Fehlt die Spalte
-        ``activity_type``, wird der Datensatz unverändert zurückgegeben.
+        activity_type, wird der Datensatz unverändert zurückgegeben.
     """
     if "activity_type" not in df.columns:
         logger.warning("Garmin: Spalte activity_type fehlt, Filter übersprungen")
@@ -64,7 +64,7 @@ def reduce_to_core_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Reduziert den Datensatz auf die Kernvariablen.
 
     Der Garmin-Export enthält rund 30 Spalten, von denen nur neun für die
-    Auswertung gebraucht werden. Fehlende Kernspalten werden mit ``pd.NA``
+    Auswertung gebraucht werden. Fehlende Kernspalten werden mit pd.NA
     ergänzt, damit das Schema unabhängig von der Exportversion stabil bleibt.
 
     Args:
@@ -72,7 +72,7 @@ def reduce_to_core_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         Datensatz mit exakt den Spalten aus
-        :data:`~running_data.config.RAW_CORE_COLUMNS`, in dieser Reihenfolge.
+        RAW_CORE_COLUMNS, in dieser Reihenfolge.
     """
     present = [c for c in RAW_CORE_COLUMNS if c in df.columns]
     missing = [c for c in RAW_CORE_COLUMNS if c not in df.columns]
@@ -93,14 +93,14 @@ def reduce_to_core_columns(df: pd.DataFrame) -> pd.DataFrame:
 def convert_duration_to_seconds(duration_str: object) -> float:
     """Rechnet eine Garmin-Dauerangabe in Sekunden um.
 
-    Verarbeitet ``hh:mm:ss`` und ``mm:ss``; bereits numerische Werte werden
+    Verarbeitet hh:mm:ss und mm:ss; bereits numerische Werte werden
     unverändert übernommen.
 
     Args:
         duration_str: Dauer als Text, Zahl oder fehlender Wert.
 
     Returns:
-        Die Dauer in Sekunden, oder ``NaN`` bei fehlender oder nicht
+        Die Dauer in Sekunden, oder NaN bei fehlender oder nicht
         interpretierbarer Eingabe.
     """
     if pd.isna(duration_str):
@@ -122,16 +122,16 @@ def clean_garmin_typing(df: pd.DataFrame) -> pd.DataFrame:
 
     Args:
         df: Datensatz im Schema
-            :data:`~running_data.config.RAW_CORE_COLUMNS`.
+            RAW_CORE_COLUMNS.
 
     Returns:
-        Kopie mit der zusätzlichen Spalte ``duration_sec``, numerisch
+        Kopie mit der zusätzlichen Spalte duration_sec, numerisch
         typisierten Messwerten und kategorialen Schlüsselspalten.
 
     Note:
-        Die Rohspalte ``duration`` bleibt erhalten. Beim Apple-Pendant wird
-        sie in ``duration_sec`` umbenannt und verschwindet dadurch — daher
-        die leeren ``duration``-Werte bei Apple-Zeilen im kombinierten
+        Die Rohspalte duration bleibt erhalten. Beim Apple-Pendant wird
+        sie in duration_sec umbenannt und verschwindet dadurch — daher
+        die leeren duration-Werte bei Apple-Zeilen im kombinierten
         Datensatz (TODO 11). Verhalten hier unverändert übernommen.
     """
     df = df.copy()

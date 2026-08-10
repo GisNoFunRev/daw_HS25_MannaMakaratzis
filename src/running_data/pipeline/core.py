@@ -1,22 +1,22 @@
 """Das Pipeline-Pattern (LE5).
 
-Dieses Modul enthält die Mechanik der Pipeline, aber bewusst **keine**
-konkreten Bereinigungsschritte: :class:`DataCleaningPipeline` weiss nicht, was
+Dieses Modul enthält die Mechanik der Pipeline, aber bewusst keine
+konkreten Bereinigungsschritte: DataCleaningPipeline weiss nicht, was
 "Herzfrequenz bereinigen" bedeutet, sondern nur, wie ein beliebiger Schritt
 ausgeführt, protokolliert und im Fehlerfall behandelt wird.
 
 Welche Schritte tatsächlich zusammengesetzt werden, entscheidet
-:mod:`running_data.pipeline.factory`. Diese Trennung erlaubt es, die
+running_data.pipeline.factory. Diese Trennung erlaubt es, die
 Reihenfolge der Bereinigung zu ändern, ohne die Ausführungslogik anzufassen.
 
 Fehlerbehandlung
 ----------------
 Jeder Schritt ist als kritisch oder unkritisch markiert:
 
-* **kritisch** — schlägt der Schritt fehl oder bleibt kein Datensatz übrig,
+* kritisch — schlägt der Schritt fehl oder bleibt kein Datensatz übrig,
   bricht die Pipeline ab. Beispiel: das Entfernen von Zeilen ohne Distanz und
   Dauer. Ohne diese Werte ist eine Weiterverarbeitung sinnlos.
-* **unkritisch** — der Fehler wird protokolliert, die Pipeline läuft mit dem
+* unkritisch — der Fehler wird protokolliert, die Pipeline läuft mit dem
   Datenstand *vor* dem Schritt weiter. Beispiel: die Kalorien-Imputation; ein
   fehlender Kalorienwert macht einen Lauf nicht unbrauchbar.
 """
@@ -32,9 +32,9 @@ from .report import CleaningReport
 
 logger = get_logger(__name__)
 
-#: Signatur, der jeder Bereinigungsschritt genügen muss. Die einheitliche
-#: Signatur ist der Grund, warum die Pipeline Schritte austauschbar behandeln
-#: kann, ohne sie zu kennen.
+# Signatur, der jeder Bereinigungsschritt genügen muss. Die einheitliche
+# Signatur ist der Grund, warum die Pipeline Schritte austauschbar behandeln
+# kann, ohne sie zu kennen.
 CleaningStepFunction = Callable[
     [pd.DataFrame, DataCleaningConfig, CleaningReport], pd.DataFrame
 ]
@@ -47,7 +47,7 @@ class CleaningStep:
     Attributes:
         name: Anzeigename, erscheint im Log und im Bericht.
         function: Die auszuführende Funktion, siehe
-            :data:`CleaningStepFunction`.
+            CleaningStepFunction.
         description: Beschreibung für die Dokumentation.
         is_critical: Ob ein Fehler die Pipeline abbrechen soll.
     """
@@ -59,7 +59,7 @@ class CleaningStep:
 
 
 class DataCleaningPipeline:
-    """Führt eine Folge von :class:`CleaningStep` nacheinander aus.
+    """Führt eine Folge von CleaningStep nacheinander aus.
 
     Beispiel:
         >>> pipeline = DataCleaningPipeline("Garmin", config)
@@ -78,7 +78,7 @@ class DataCleaningPipeline:
 
         Returns:
             Die Pipeline selbst, damit Aufrufe verkettet werden können
-            (``pipeline.add_step(a).add_step(b)``).
+            (pipeline.add_step(a).add_step(b)).
         """
         self.steps.append(step)
         return self
@@ -92,7 +92,7 @@ class DataCleaningPipeline:
 
         Returns:
             Ein Tupel aus dem bereinigten DataFrame und dem zugehörigen
-            :class:`~running_data.pipeline.report.CleaningReport`.
+            CleaningReport.
 
         Raises:
             Exception: Wird von einem als kritisch markierten Schritt

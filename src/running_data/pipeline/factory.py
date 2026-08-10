@@ -12,7 +12,7 @@ Frage der Sorgfalt beim Kopieren. Ein neunter Schritt hätte an zwei Stellen
 eingefügt werden müssen; ein Versäumnis wäre nicht aufgefallen, weil beide
 Berichte weiterhin plausibel ausgesehen hätten.
 
-Durch :func:`build_cleaning_pipeline` ist die Gleichheit jetzt per
+Durch build_cleaning_pipeline ist die Gleichheit jetzt per
 Konstruktion gegeben: Es gibt nur noch eine Definition der Schrittfolge.
 """
 
@@ -20,12 +20,12 @@ from ..cleaning import steps
 from ..config import DataCleaningConfig
 from .core import CleaningStep, DataCleaningPipeline
 
-#: Die Standard-Schrittfolge der Datenbereinigung.
-#:
-#: Die Reihenfolge ist fachlich begründet (siehe Modul-Docstring von
-#: :mod:`running_data.cleaning.steps`). Kritisch ist allein "Validate
-#: Essentials": Ohne Distanz und Dauer ist ein Eintrag kein auswertbarer Lauf,
-#: alle weiteren Schritte würden auf leeren Daten arbeiten.
+# Die Standard-Schrittfolge der Datenbereinigung.
+#
+# Die Reihenfolge ist fachlich begründet (siehe Modul-Docstring von
+# running_data.cleaning.steps). Kritisch ist allein "Validate
+# Essentials": Ohne Distanz und Dauer ist ein Eintrag kein auswertbarer Lauf,
+# alle weiteren Schritte würden auf leeren Daten arbeiten.
 DEFAULT_CLEANING_STEPS: tuple[CleaningStep, ...] = (
     CleaningStep(
         name="Date Imputation",
@@ -84,7 +84,7 @@ def build_cleaning_pipeline(
     """Baut die Standard-Bereinigungspipeline für eine Datenquelle.
 
     Args:
-        source: Name der Quelle für Log und Bericht, z. B. ``"Garmin"``.
+        source: Name der Quelle für Log und Bericht, z. B. "Garmin".
         config: Schwellenwerte, die an alle Schritte weitergereicht werden.
 
     Returns:

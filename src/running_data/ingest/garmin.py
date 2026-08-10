@@ -3,18 +3,18 @@
 Datenquelle
 -----------
 CSV-Export aus Garmin Connect, abgelegt unter
-``data/garmin/<exportdatum>/Activities.csv``.
+data/garmin/<exportdatum>/Activities.csv.
 
 Besonderheiten des Formats
 --------------------------
-* **Encoding**: Garmin exportiert nicht in UTF-8, sondern je nach Version in
+* Encoding: Garmin exportiert nicht in UTF-8, sondern je nach Version in
   Latin-1 bzw. CP1252. Ein fester Encoding-Parameter schlägt deshalb
   sporadisch fehl; stattdessen werden mehrere Kandidaten der Reihe nach
   probiert.
-* **Trennzeichen**: Semikolon statt Komma (europäisches Format).
-* **Spaltennamen**: nicht standardisiert, mit Leerzeichen ("Avg HR").
+* Trennzeichen: Semikolon statt Komma (europäisches Format).
+* Spaltennamen: nicht standardisiert, mit Leerzeichen ("Avg HR").
 
-Dieses Modul führt bewusst **keine** Bereinigung und keine
+Dieses Modul führt bewusst keine Bereinigung und keine
 Einheitenumrechnung durch. Es liest die Rohwerte und vereinheitlicht
 lediglich die Spaltennamen, damit Garmin- und Apple-Daten anschliessend
 dieselbe Bereinigungspipeline durchlaufen können.
@@ -30,12 +30,12 @@ from ..paths import GARMIN_GLOB
 
 logger = get_logger(__name__)
 
-#: Encodings in der Reihenfolge, in der sie probiert werden. Latin-1 zuerst,
-#: weil es das in den vorliegenden Exporten tatsächlich verwendete ist.
+# Encodings in der Reihenfolge, in der sie probiert werden. Latin-1 zuerst,
+# weil es das in den vorliegenden Exporten tatsächlich verwendete ist.
 CANDIDATE_ENCODINGS: tuple[str, ...] = ("latin-1", "iso-8859-1", "utf-8", "cp1252")
 
-#: Abbildung der Garmin-Spaltennamen auf das gemeinsame Schema.
-#: Noch Teil von LE1 (Struktur angleichen), nicht von LE2 (Daten bereinigen).
+# Abbildung der Garmin-Spaltennamen auf das gemeinsame Schema.
+# Noch Teil von LE1 (Struktur angleichen), nicht von LE2 (Daten bereinigen).
 COLUMN_RENAME_MAP: dict[str, str] = {
     "Activity Type": "activity_type",
     "Date": "date",
@@ -54,8 +54,8 @@ def _read_csv_with_fallback_encoding(file: str) -> pd.DataFrame | None:
         file: Pfad zur CSV-Datei.
 
     Returns:
-        Der eingelesene DataFrame, oder ``None``, wenn keines der Encodings
-        in :data:`CANDIDATE_ENCODINGS` funktioniert hat.
+        Der eingelesene DataFrame, oder None, wenn keines der Encodings
+        in CANDIDATE_ENCODINGS funktioniert hat.
     """
     for encoding in CANDIDATE_ENCODINGS:
         try:
@@ -73,13 +73,13 @@ def import_garmin_activities(data_path: str = GARMIN_GLOB) -> pd.DataFrame:
     """Importiert alle Garmin-CSV-Exporte und fügt sie zusammen.
 
     Je Exportordner wird das Exportdatum aus dem Ordnernamen übernommen
-    (z. B. ``data/garmin/2025-08-22/`` → ``export_date = "2025-08-22"``).
+    (z. B. data/garmin/2025-08-22/ → export_date = "2025-08-22").
     Das erlaubt es, mehrere Exporte nebeneinander abzulegen und später
     nachzuvollziehen, aus welchem Export eine Zeile stammt.
 
     Args:
         data_path: Glob-Muster der zu lesenden CSV-Dateien. Standard ist
-            :data:`running_data.paths.GARMIN_GLOB`.
+            running_data.paths.GARMIN_GLOB.
 
     Returns:
         Alle Aktivitäten aller Exporte in einem DataFrame mit

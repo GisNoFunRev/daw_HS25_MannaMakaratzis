@@ -1,16 +1,16 @@
 """Validierungsregeln für Laufdaten.
 
-Alle Prüfungen folgen demselben Prinzip: Sie geben eine **boolesche Maske**
+Alle Prüfungen folgen demselben Prinzip: Sie geben eine boolesche Maske
 zurück und verändern die Daten nicht. Ob eine als unplausibel erkannte Zeile
 entfernt, korrigiert oder nur gezählt wird, entscheidet der aufrufende
 Bereinigungsschritt.
 
 Diese Trennung hat zwei Vorteile: Dieselbe Regel lässt sich sowohl zum
-Filtern (:mod:`running_data.cleaning.steps`) als auch zum Messen
-(:mod:`running_data.pipeline.quality`) verwenden, und jede Regel ist für sich
+Filtern (running_data.cleaning.steps) als auch zum Messen
+(running_data.pipeline.quality) verwenden, und jede Regel ist für sich
 testbar, ohne dass ein DataFrame verändert werden muss.
 
-Alle Grenzwerte stammen aus :class:`~running_data.config.DataCleaningConfig`
+Alle Grenzwerte stammen aus DataCleaningConfig
 und sind bewusst nicht hier hinterlegt.
 """
 
@@ -34,7 +34,7 @@ class DataValidator:
         """Prüft die Distanz auf einen realistischen Bereich.
 
         Returns:
-            Boolesche Maske; ``True`` bedeutet plausible Distanz.
+            Boolesche Maske; True bedeutet plausible Distanz.
         """
         return df["distance_km"].between(
             config.DISTANCE_MIN, config.DISTANCE_MAX, inclusive="both"
@@ -47,7 +47,7 @@ class DataValidator:
         """Prüft die Dauer auf einen realistischen Bereich.
 
         Returns:
-            Boolesche Maske; ``True`` bedeutet plausible Dauer.
+            Boolesche Maske; True bedeutet plausible Dauer.
         """
         return df["duration_sec"].between(
             config.DURATION_MIN, config.DURATION_MAX, inclusive="both"
@@ -62,7 +62,7 @@ class DataValidator:
         nicht.
 
         Returns:
-            Boolesche Maske; ``True`` bedeutet plausible Pace.
+            Boolesche Maske; True bedeutet plausible Pace.
         """
         pace = (df["duration_sec"] / 60.0) / df["distance_km"]
         return pace.between(config.PACE_MIN, config.PACE_MAX, inclusive="both")
@@ -74,7 +74,7 @@ class DataValidator:
         """Prüft die durchschnittliche Herzfrequenz auf physiologische Grenzen.
 
         Returns:
-            Boolesche Maske; ``True`` bedeutet plausible Herzfrequenz.
+            Boolesche Maske; True bedeutet plausible Herzfrequenz.
         """
         return df["avg_heart_rate"].between(
             config.HR_MIN, config.HR_MAX, inclusive="both"
@@ -84,7 +84,7 @@ class DataValidator:
     def validate_hr_consistency(
         df: pd.DataFrame, config: DataCleaningConfig
     ) -> dict[str, pd.Series]:
-        """Prüft die Konsistenzregel ``max_heart_rate >= avg_heart_rate``.
+        """Prüft die Konsistenzregel max_heart_rate >= avg_heart_rate.
 
         Eine Verletzung dieser Regel hat zwei mögliche Ursachen, die
         unterschiedlich behandelt werden müssen: Liegt der Unterschied im
@@ -95,11 +95,11 @@ class DataValidator:
         Returns:
             Dictionary mit drei Masken:
 
-            ``inverted_mask``
-                Alle Zeilen mit ``max < avg``.
-            ``tolerance_mask``
+            inverted_mask
+                Alle Zeilen mit max < avg.
+            tolerance_mask
                 Davon jene innerhalb der Rundungstoleranz — korrigierbar.
-            ``conflict_mask``
+            conflict_mask
                 Die übrigen — echte Widersprüche.
         """
         inverted = (

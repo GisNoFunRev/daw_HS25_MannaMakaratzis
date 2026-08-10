@@ -1,12 +1,12 @@
 """Die einzelnen Schritte der Bereinigungspipeline.
 
 Alle Funktionen dieses Moduls haben dieselbe Signatur
-``(df, config, report) -> df`` (siehe
-:data:`~running_data.pipeline.core.CleaningStepFunction`) und sind damit für
+(df, config, report) -> df (siehe
+CleaningStepFunction) und sind damit für
 die Pipeline austauschbar. Sie sind quellenunabhängig: Ab hier sind Garmin-
 und Apple-Daten auf dasselbe Schema harmonisiert, quellenspezifisches Wissen
-steckt ausschliesslich in :mod:`running_data.cleaning.garmin_typing` und
-:mod:`running_data.cleaning.apple_typing`.
+steckt ausschliesslich in running_data.cleaning.garmin_typing und
+running_data.cleaning.apple_typing.
 
 Reihenfolge der Schritte
 ------------------------
@@ -32,8 +32,8 @@ from .validators import DataValidator
 
 logger = get_logger(__name__)
 
-#: Obergrenze, oberhalb derer ein Herzfrequenzwert als Messfehler gilt und
-#: verworfen wird, bevor die eigentliche Plausibilitätsprüfung greift.
+# Obergrenze, oberhalb derer ein Herzfrequenzwert als Messfehler gilt und
+# verworfen wird, bevor die eigentliche Plausibilitätsprüfung greift.
 HR_IMPLAUSIBLE_ABOVE = 300
 
 
@@ -47,17 +47,17 @@ def step_impute_dates(
     anzunehmen). Das vermeidet, dass Läufe allein wegen eines fehlenden
     Zeitstempels verloren gehen.
 
-    .. warning::
-       **Bekannter Fehler (TODO 1), hier bewusst unverändert übernommen.**
-       ``pd.to_datetime`` wird ohne Formatangabe aufgerufen. Garmin liefert
-       Datumswerte im europäischen Format ``TT.MM.JJJJ HH:MM``, das pandas
-       ohne ``dayfirst=True`` als ``MM.TT.JJJJ`` liest. Folge: Bei Tagen
+    Achtung:
+       Bekannter Fehler (TODO 1), hier bewusst unverändert übernommen.
+       pd.to_datetime wird ohne Formatangabe aufgerufen. Garmin liefert
+       Datumswerte im europäischen Format TT.MM.JJJJ HH:MM, das pandas
+       ohne dayfirst=True als MM.TT.JJJJ liest. Folge: Bei Tagen
        ≤ 12 werden Tag und Monat vertauscht ("11.07.2025" wird zum
-       7. November), bei Tagen > 12 entsteht ``NaT`` — und diese Zeilen
+       7. November), bei Tagen > 12 entsteht NaT — und diese Zeilen
        erhalten anschliessend hier alle dasselbe Exportdatum.
 
-       Die Korrektur gehört in ``clean_garmin_typing`` (explizites
-       ``format="%d.%m.%Y %H:%M"``) und ist nicht Teil dieses
+       Die Korrektur gehört in clean_garmin_typing (explizites
+       format="%d.%m.%Y %H:%M") und ist nicht Teil dieses
        Refactorings, das das Verhalten unverändert lassen soll.
     """
     df = df.copy()
@@ -79,7 +79,7 @@ def step_remove_duplicates(
     """Schritt 2 — entfernt doppelt erfasste Läufe.
 
     Ein Lauf gilt als Duplikat, wenn Quelle, Zeitpunkt, Distanz und Dauer
-    übereinstimmen (:data:`~running_data.config.DUPLICATE_KEY_COLUMNS`). Die
+    übereinstimmen (DUPLICATE_KEY_COLUMNS). Die
     Quelle ist Teil des Schlüssels, weil derselbe Lauf durchaus von zwei
     Geräten aufgezeichnet worden sein darf.
     """
@@ -132,11 +132,11 @@ def step_clean_heart_rate(
 
     Ablauf:
 
-    1. Offensichtliche Messfehler (≤ 0 oder > 300 bpm) werden zu ``NaN``.
-    2. Widersprüche ``max < avg`` werden aufgelöst: innerhalb der
-       Rundungstoleranz wird ``max`` auf ``avg`` gesetzt, darüber hinaus
+    1. Offensichtliche Messfehler (≤ 0 oder > 300 bpm) werden zu NaN.
+    2. Widersprüche max < avg werden aufgelöst: innerhalb der
+       Rundungstoleranz wird max auf avg gesetzt, darüber hinaus
        gelten beide Werte als unglaubwürdig und werden verworfen.
-    3. Die verbleibenden Lücken werden mit dem Median **je Quelle** gefüllt.
+    3. Die verbleibenden Lücken werden mit dem Median je Quelle gefüllt.
     """
     df = df.copy()
     validator = DataValidator()
@@ -181,7 +181,7 @@ def step_impute_calories(
     """Schritt 6 — ergänzt fehlende Kalorien und begrenzt Ausreisser.
 
     Zuerst greift die gruppenbasierte Imputation (siehe
-    :mod:`running_data.cleaning.imputation`), danach werden Ausreisser
+    running_data.cleaning.imputation), danach werden Ausreisser
     winsorisiert — also auf die Grenzwerte gesetzt statt entfernt, um keine
     ansonsten gültigen Läufe zu verlieren. Winsorisiert wird zweifach: gegen
     absolute Grenzen und gegen ein plausibles Verhältnis kcal pro Kilometer.

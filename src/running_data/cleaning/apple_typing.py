@@ -1,15 +1,15 @@
 """Apple-spezifische Aufbereitung: Filtern, Schema und Einheiten.
 
-Gegenstück zu :mod:`running_data.cleaning.garmin_typing`. Beide Module haben
+Gegenstück zu running_data.cleaning.garmin_typing. Beide Module haben
 dieselbe Aufgabe — die Rohdaten ihrer Quelle in das gemeinsame Schema
 überführen — unterscheiden sich aber in den Eigenheiten, die sie dabei
 ausgleichen müssen.
 
 Einheitenkonventionen bei Apple Health
 --------------------------------------
-* **Dauer** numerisch, üblicherweise in Minuten (Garmin: Text ``hh:mm:ss``).
-* **Distanz** je nach Gerät in Kilometern oder Metern.
-* **Zeitstempel** mit Zeitzonen-Offset (Garmin: ohne).
+* Dauer numerisch, üblicherweise in Minuten (Garmin: Text hh:mm:ss).
+* Distanz je nach Gerät in Kilometern oder Metern.
+* Zeitstempel mit Zeitzonen-Offset (Garmin: ohne).
 
 Die Einheiten sind im Export nicht deklariert, weshalb sie über Heuristiken
 erkannt werden. Beide sind bewusst konservativ gewählt, sodass sie nur
@@ -24,19 +24,19 @@ from ..logging_setup import get_logger
 
 logger = get_logger(__name__)
 
-#: Teilstring zur Erkennung von Laufaktivitäten. Enger gefasst als bei Garmin
-#: ("running" statt "run"), da Apple bereits normalisierte Typnamen liefert.
+# Teilstring zur Erkennung von Laufaktivitäten. Enger gefasst als bei Garmin
+# ("running" statt "run"), da Apple bereits normalisierte Typnamen liefert.
 RUNNING_KEYWORD = "running"
 
-#: Liegt der Median der Dauer in diesem Bereich, sind die Werte in Minuten
-#: angegeben: Als Sekunden gelesen wären das 10 bis 200 Sekunden — für einen
-#: aufgezeichneten Lauf unrealistisch kurz.
+# Liegt der Median der Dauer in diesem Bereich, sind die Werte in Minuten
+# angegeben: Als Sekunden gelesen wären das 10 bis 200 Sekunden — für einen
+# aufgezeichneten Lauf unrealistisch kurz.
 DURATION_MINUTES_MEDIAN_RANGE = (10, 200)
 
-#: Ab diesem Wert wird die Distanz als in Metern angegeben interpretiert.
+# Ab diesem Wert wird die Distanz als in Metern angegeben interpretiert.
 METERS_HEURISTIC_THRESHOLD = 200
 
-#: Zielformat des Zeitstempels, abgestimmt auf die Garmin-Daten.
+# Zielformat des Zeitstempels, abgestimmt auf die Garmin-Daten.
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
@@ -84,7 +84,7 @@ def _normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     """Bringt die Zeitstempel auf dieselbe Darstellung wie bei Garmin.
 
     Apple liefert Zeitstempel mit Zeitzonen-Offset. Der Offset wird
-    **entfernt, nicht umgerechnet**: Die Ortszeit des Laufs ist die
+    entfernt, nicht umgerechnet: Die Ortszeit des Laufs ist die
     fachlich relevante Grösse — ein Lauf um 7 Uhr morgens bleibt ein Lauf um
     7 Uhr morgens, unabhängig davon, in welcher Zeitzone er stattfand.
     """
@@ -125,13 +125,13 @@ def clean_apple_typing(df: pd.DataFrame) -> pd.DataFrame:
 
     Args:
         df: Gefilterte Apple-Workouts mit den neutralen Importspalten
-            ``date``, ``activity_type``, ``distance``, ``duration``,
-            ``calories``, ``avg_heart_rate``, ``max_heart_rate``, ``source``
-            und ``export_date``.
+            date, activity_type, distance, duration,
+            calories, avg_heart_rate, max_heart_rate, source
+            und export_date.
 
     Returns:
         Datensatz mit exakt den Spalten aus
-        :data:`~running_data.config.CORE_COLUMNS`, in dieser Reihenfolge.
+        CORE_COLUMNS, in dieser Reihenfolge.
     """
     df = df.copy()
 

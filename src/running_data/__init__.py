@@ -1,13 +1,11 @@
 """Data-Wrangling-Pipeline für Laufdaten aus Garmin Connect und Apple Health.
 
 Das Paket bündelt die gesamte Verarbeitungslogik, die zuvor direkt im
-Quarto-Notebook stand. Das Notebook (``notebooks/data_wrangling.qmd``) ruft
+Quarto-Notebook stand. Das Notebook (notebooks/data_wrangling.qmd) ruft
 diese Module nur noch auf und stellt die Ergebnisse dar.
 
 Verarbeitungskette
 ------------------
-.. code-block:: text
-
     ingest        →  cleaning        →  pipeline       →  combine  →  export
     Rohdaten je      Typisierung je     8 Schritte,       beide       Parquet
     Quelle lesen     Quelle, dann       je Quelle         Quellen     und CSV
@@ -15,29 +13,27 @@ Verarbeitungskette
 
 Aufbau des Pakets
 -----------------
-``config``
+config
     Zentrale Schwellenwerte und Schema-Konstanten.
-``paths``
+paths
     Projektpfade, unabhängig vom aktuellen Arbeitsverzeichnis.
-``logging_setup``
+logging_setup
     Einrichtung des Loggings — vom Notebook aufzurufen, nicht von Modulen.
-``ingest``
+ingest
     Rohdaten-Import je Quelle (Garmin CSV, Apple XML, GPX).
-``cleaning``
+cleaning
     Typisierung, Validatoren, Imputation und die Bereinigungsschritte.
-``pipeline``
+pipeline
     Pipeline-Pattern, Bereinigungsbericht und Datenqualitäts-Metriken.
-``combine``
+combine
     Zusammenführung der bereinigten Quellen.
-``export``
+export
     Persistierung des Ergebnisses.
-``features``
+features
     Abgeleitete Variablen (noch nicht implementiert).
 
 Beispiel
 --------
-.. code-block:: python
-
     from running_data import (
         DataCleaningConfig, build_cleaning_pipeline, concat_sources,
         configure_logging, import_garmin_activities, write_outputs,
