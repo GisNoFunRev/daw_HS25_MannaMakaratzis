@@ -3,8 +3,9 @@ title: Data Wrangler
 jupyter: python3
 ---
 
+
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:04.157420Z', start_time: '2025-10-11T08:17:03.319483Z'}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:01.209716Z', start_time: '2025-11-13T09:25:00.795758Z'}
 import pandas as pd
 import numpy as np
 from lxml import etree  # lxml, da grosse dateien bei apple
@@ -30,7 +31,7 @@ Besondere Herausforderungen:
 Lösung: Multi-Encoding-Parser mit automatischer Erkennung und Spalten-Standardisierung.
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:04.178944Z', start_time: '2025-10-11T08:17:04.171357Z'}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:01.221556Z', start_time: '2025-11-13T09:25:01.217497Z'}
 def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
     """
     Import all Garmin CSV files and combine into single DataFrame
@@ -82,7 +83,7 @@ def import_garmin_activities(data_path="data/garmin/*/Activities.csv"):
 ```
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:05.148559Z', start_time: '2025-10-11T08:17:05.095692Z'}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:01.246354Z', start_time: '2025-11-13T09:25:01.228145Z'}
 # Test the function
 garmin_df = import_garmin_activities()
 print(f"Garmin activities imported: {len(garmin_df)}")
@@ -116,7 +117,7 @@ Damit wird der Import ressourcenschonend, das Schema bleibt schlank, und die Dat
 **Import-Strategie erfolgreich**: Separate DataFrames ermöglichen individuelle Bereinigung (LE2) und flexible Join-Strategien (LE4).
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.344756Z', start_time: '2025-10-11T08:17:05.441150Z'}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.119838Z', start_time: '2025-11-13T09:25:01.296342Z'}
 def import_apple_workouts(xml_path="data/apple/*/Export.xml"):
     """
     Apple Health Workouts roh importieren.
@@ -201,162 +202,830 @@ apple_df_raw = import_apple_workouts()
 ```
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.405244Z', start_time: '2025-10-11T08:17:18.394700Z'}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.246185Z', start_time: '2025-11-13T09:25:13.237702Z'}
 apple_df_raw.head(132)
 ```
 
-## LE 2: Bereinigen und LE3: Transformieren
+## Bereinigen und Transformieren
 
+**Überblick:**
+Dieses Kapitel implementiert einen Best-Practice-Ansatz für Data Cleaning mit:
+- **Zentraler Konfiguration** aller Schwellenwerte
+- **Strukturiertem Logging** für Nachvollziehbarkeit
+- **Modularen Validatoren** für Wiederverwendbarkeit
+- **Pipeline-Pattern** für robuste Verarbeitung
+- **Transparenter Imputation** mit Tracking
+- **Automatischen Qualitätsmetriken**
 
-**Helperfunktionen für gruppenbasierte Imputation**
+### 2.0 Konfiguration & Infrastruktur
 
-**Ziel:**
-Unterstützen die gruppenbasierte Imputation fehlender Kalorienwerte (`calories`) über Distanz- und Herzfrequenzklassen. Ziel ist eine realistische Schätzung basierend auf ähnlichen Trainingsprofilen.
-
-**_build_distance_bins(s):**
-Erstellt Distanzklassen [0–5), [5–10), [10–15), [15–25), [25–50) km.
-Wandelt Eingabewerte in numerische Werte um, ersetzt negative durch 0 und gibt kategoriale Intervalle zurück.
-→ Grundlage für gruppenbasierte Schätzung nach Laufdistanz.
-
-**_build_hr_bins_per_source(df, col="avg_heart_rate"):**
-Teilt Herzfrequenzen je Datenquelle (`source`) in Quartile (1–4).
-Bei zu wenigen Werten erfolgt 2-Binning. Rückgabe: numerische Intensitätsstufen.
-→ Differenziert Kaloriengruppen nach Trainingsintensität und Quelle.
-
-**_impute_grouped_calories(df):**
-Füllt fehlende oder fehlerhafte Kalorien nach mehreren Ebenen:
-1. (source, dist_bin, hr_bin)
-2. (source, dist_bin)
-3. (source)
-4. globaler Median.
-Verwendet `_build_distance_bins` und `_build_hr_bins_per_source`.
-→ Stufenweise Median-Imputation mit realistischen Fallbacks.
-
-**_count_changed(series_old, series_new):**
-Zählt geänderte Werte zwischen zwei Serien (`np.count_nonzero`).
-→ Dient zur Quantifizierung von Anpassungen nach Imputation oder Winsorisierung.
-
-**Gesamt:**
-Diese Funktionen bilden das Fundament für robuste, konsistente und quellübergreifende Kalorien-Imputation und stellen Datenqualität vor der Analyse sicher.
-
-#### Helperfunktionen für gruppenbasierte Imputation
+#### 2.0.1 Zentrale Konfiguration
+Die Klasse DataCleaningConfig kapselt alle Schwellenwerte und Parameter für die Datenbereinigung. Dadurch sind Anpassungen zentral möglich, ohne den Code zu verändern.
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.438087Z', start_time: '2025-10-11T08:17:18.429868Z'}
-def _build_distance_bins(s: pd.Series):
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.492190Z', start_time: '2025-11-13T09:25:13.487816Z'}
+class DataCleaningConfig:
     """
-    Bins für Distanz: [0–5), [5–10), [10–15), [15–25), [25–50)
+    Zentrale Konfiguration für Data Cleaning Parameter.
+    Alle Schwellenwerte an einem Ort → leichter anpassbar und dokumentiert.
     """
-    bins = [0, 5, 10, 15, 25, 50]
+
+    # Distanz-Grenzen (km)
+    DISTANCE_MIN = 0.05
+    DISTANCE_MAX = 60
+    DISTANCE_BINS = [0, 5, 10, 15, 25, 50]
+
+    # Dauer-Grenzen (Sekunden)
+    DURATION_MIN = 60
+    DURATION_MAX = 18_000  # 5 Stunden
+
+    # Pace-Grenzen (min/km)
+    PACE_MIN = 2.3  # ~Weltrekord
+    PACE_MAX = 10.5  # Langsames Joggen / schnelles Laufen
+
+    # Herzfrequenz-Grenzen (bpm)
+    HR_MIN = 80
+    HR_MAX = 210
+    HR_MAX_ABSOLUTE = 230
+    HR_CONSISTENCY_TOLERANCE = 3  # Rundungstoleranz max vs avg
+
+    # Kalorien-Grenzen
+    CALORIES_MIN = 50
+    CALORIES_MAX = 3000
+    CALORIES_PER_KM_MIN = 25
+    CALORIES_PER_KM_MAX = 120
+
+    # Imputation
+    HR_QUANTILES = 4  # Anzahl Herzfrequenz-Bins
+
+
+# Konfiguration instanziieren
+config = DataCleaningConfig()
+print("✅ Konfiguration geladen")
+print(f"   Distanz: {config.DISTANCE_MIN}–{config.DISTANCE_MAX} km")
+print(f"   Pace: {config.PACE_MIN}–{config.PACE_MAX} min/km")
+print(f"   Herzfrequenz: {config.HR_MIN}–{config.HR_MAX} bpm")
+```
+
+#### 2.0.2 Logging & Reporting Infrastructure
+
+Es wird wird ein Standard-Logger eingerichtet, der alle Bereinigungsschritte und Entscheidungen protokolliert.
+
+Die CleaningReport-Klasse sammelt Metriken zu entfernten/angepassten Zeilen, um die Datenqualität zu überwachen. 
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.668458Z', start_time: '2025-11-13T09:25:13.662531Z'}
+import logging
+from datetime import datetime
+from typing import Callable, List, Tuple, Dict
+from dataclasses import dataclass
+
+# Logger konfigurieren
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+
+logger = logging.getLogger("DataCleaning")
+
+
+class CleaningReport:
+    """Strukturierter Bereinigungsbericht mit detaillierter Schritt-Dokumentation"""
+
+    def __init__(self, source: str):
+        self.source = source
+        self.steps = []
+        self.initial_rows = 0
+        self.final_rows = 0
+
+    def add_step(self, step_name: str, rows_before: int, rows_after: int, **kwargs):
+        """Dokumentiert einen Bereinigungsschritt"""
+        removed = rows_before - rows_after
+        self.steps.append(
+            {
+                "step": step_name,
+                "rows_before": rows_before,
+                "rows_after": rows_after,
+                "removed": removed,
+                "removal_rate": removed / rows_before if rows_before > 0 else 0,
+                **kwargs,
+            }
+        )
+        logger.info(
+            f"{self.source} | {step_name}: {rows_before} → {rows_after} (-{removed}, {removed/rows_before*100:.1f}%)"
+        )
+
+    def to_dataframe(self):
+        """Konvertiert Report zu DataFrame"""
+        return pd.DataFrame(self.steps)
+
+    def summary(self):
+        """Erstellt Zusammenfassung"""
+        total_removed = self.initial_rows - self.final_rows
+        retention_rate = (
+            self.final_rows / self.initial_rows if self.initial_rows > 0 else 0
+        )
+
+        summary_text = f"""
+            {'='*60}
+            DATA CLEANING SUMMARY: {self.source.upper()}
+            {'='*60}
+            Initial rows:     {self.initial_rows:>6}
+            Final rows:       {self.final_rows:>6}
+            Total removed:    {total_removed:>6} ({(1-retention_rate)*100:.1f}%)
+            Retention rate:   {retention_rate*100:.1f}%
+            {'='*60}
+        """
+        print(summary_text)
+
+        return {
+            "source": self.source,
+            "initial_rows": self.initial_rows,
+            "final_rows": self.final_rows,
+            "total_removed": total_removed,
+            "retention_rate": retention_rate,
+        }
+
+
+print("Logging & Reporting Infrastructure initialisiert")
+```
+
+#### 2.0.3 Modularisierte Validatoren
+
+Die `DataValidator`-Klasse ist das **Herzstück der Datenqualitätsprüfung**. Sie kapselt alle Validierungsregeln für Laufdaten in wiederverwendbare, statische Methoden. Für jede Methode wird eine spezifische Regel implementiert, die eine boolesche Maske zurückgibt, welche Zeilen die Regel nicht erfüllen.
+
+**Verwendung in der Pipeline:**
+Diese Validatoren werden in `step_validate_plausibility()` kombiniert, um Zeilen mit unrealistischen Werten zu filtern.
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.732439Z', start_time: '2025-11-13T09:25:13.727141Z'}
+class DataValidator:
+    """Zentrale Validatoren für Running-Daten"""
+
+    @staticmethod
+    def validate_distance(df: pd.DataFrame, config: DataCleaningConfig) -> pd.Series:
+        """Returns boolean mask: True = valid distance"""
+        return df["distance_km"].between(
+            config.DISTANCE_MIN, config.DISTANCE_MAX, inclusive="both"
+        )
+
+    @staticmethod
+    def validate_duration(df: pd.DataFrame, config: DataCleaningConfig) -> pd.Series:
+        """Returns boolean mask: True = valid duration"""
+        return df["duration_sec"].between(
+            config.DURATION_MIN, config.DURATION_MAX, inclusive="both"
+        )
+
+    @staticmethod
+    def validate_pace(df: pd.DataFrame, config: DataCleaningConfig) -> pd.Series:
+        """Pace in min/km must be realistic"""
+        pace = (df["duration_sec"] / 60.0) / df["distance_km"]
+        return pace.between(config.PACE_MIN, config.PACE_MAX, inclusive="both")
+
+    @staticmethod
+    def validate_heart_rate(df: pd.DataFrame, config: DataCleaningConfig) -> pd.Series:
+        """Validates avg_heart_rate physiological range"""
+        return df["avg_heart_rate"].between(
+            config.HR_MIN, config.HR_MAX, inclusive="both"
+        )
+
+    @staticmethod
+    def validate_hr_consistency(df: pd.DataFrame, config: DataCleaningConfig) -> dict:
+        """
+        Checks max_hr >= avg_hr consistency.
+        Returns: {
+            'inverted_mask': mask where max < avg,
+            'tolerance_mask': mask where difference <= tolerance,
+            'conflict_mask': serious conflicts
+        }
+        """
+        inverted = (
+            df["max_heart_rate"].notna()
+            & df["avg_heart_rate"].notna()
+            & (df["max_heart_rate"] < df["avg_heart_rate"])
+        )
+
+        tolerance = inverted & (
+            (df["avg_heart_rate"] - df["max_heart_rate"])
+            <= config.HR_CONSISTENCY_TOLERANCE
+        )
+
+        return {
+            "inverted_mask": inverted,
+            "tolerance_mask": tolerance,
+            "conflict_mask": inverted & ~tolerance,
+        }
+
+
+print("✅ Validatoren definiert")
+```
+
+#### 2.0.4 Helper-Funktionen für Imputation
+
+Hier werden Helper Funktionen definiert, für das Handling von fehlenden Kalorienwerten basierend auf Distanz und Dauer.
+
+
+**Ablauf:**
+1. **Binning**: Distanz-Kategorien + HR-Quartile je Quelle erstellen
+2. **Fehlerkennung**: Werte ≤0 oder NaN → als fehlend markieren
+3. **Median-Lookup**: 4-stufige Fallback-Kette für jeden fehlenden Wert
+4. **Tracking**: 
+   - `calories_imputed` (Boolean): Wurde imputiert?
+   - `imputation_level` (String): Auf welcher Ebene?
+5. **Logging**: Zusammenfassung der verwendeten Imputation-Levels
+6. **Cleanup**: Temporäre Hilfsspalten (`_dist_bin`, `_hr_bin`) entfernen
+
+
+| Level | Gruppierung | Präzision | Fallback bei |
+|-------|------------|-----------|--------------|
+| **Level 3** | source + dist_bin + hr_bin | Höchste | Gruppe leer |
+| **Level 2** | source + dist_bin | Hoch | Gruppe leer |
+| **Level 1** | source | Mittel | Gruppe leer |
+| **Level 0** | Global (gesamter Datensatz) | Niedrig | Immer verfügbar |
+
+
+**Vorteile:**
+- **Sportphysiologisch sinnvoll**: Kalorien korrelieren mit Distanz × Intensität (HR)
+- **Robustheit**: Fallback-Kette verhindert fehlgeschlagene Imputation
+- **Transparenz**: Tracking ermöglicht Audit Trail und Qualitätsbewertung
+- **Quellenspezifisch**: Berücksichtigt unterschiedliche Kalibrierungen (Garmin vs. Apple)
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.796811Z', start_time: '2025-11-13T09:25:13.788533Z'}
+def _build_distance_bins(s: pd.Series, config: DataCleaningConfig):
+    """
+    Bins für Distanz basierend auf Konfiguration.
+    Nutzt config.DISTANCE_BINS für konsistente Kategorisierung.
+    """
     s_num = pd.to_numeric(s, errors="coerce").clip(lower=0)
-    return pd.cut(s_num, bins=bins, right=False, include_lowest=True)
+    return pd.cut(s_num, bins=config.DISTANCE_BINS, right=False, include_lowest=True)
 
 
-def _build_hr_bins_per_source(df: pd.DataFrame, col: str = "avg_heart_rate"):
+def _build_hr_bins_per_source(
+    df: pd.DataFrame, config: DataCleaningConfig, col: str = "avg_heart_rate"
+):
     """
     Quartils-Binning der Herzfrequenz je 'source'.
+    Nutzt config.HR_QUANTILES für Anzahl Bins.
     Rückgabe: float-Codes 1..4 (NaN falls zu wenig Daten).
     """
     hr_bin = pd.Series(np.nan, index=df.index, dtype="float")
     for src, sub in df.groupby("source"):
         x = pd.to_numeric(sub[col], errors="coerce").dropna()
         n_unique = x.nunique()
-        if n_unique >= 4:
-            q = pd.qcut(x, 4, duplicates="drop")
+        if n_unique >= config.HR_QUANTILES:
+            q = pd.qcut(x, config.HR_QUANTILES, duplicates="drop")
             codes = q.cat.codes.replace(-1, np.nan) + 1
             hr_bin.loc[q.index] = codes.astype("float")
         elif n_unique >= 2:
             c = pd.cut(x, 2)
             codes = c.cat.codes.replace(-1, np.nan) + 1
             hr_bin.loc[c.index] = codes.astype("float")
-        # sonst NaN
     return hr_bin
 
 
-def _impute_grouped_calories(df: pd.DataFrame):
+def _count_changed(series_old: pd.Series, series_new: pd.Series) -> int:
+    """
+    Zählt, wie viele Werte sich zwischen zwei Serien unterscheiden.
+    """
+    return np.count_nonzero(series_old.ne(series_new))
+
+
+def _impute_grouped_calories(df: pd.DataFrame, config: DataCleaningConfig):
     """
     Imputiert 'calories' nach (source, dist_bin, hr_bin) mit Fallbacks.
-    Erwartet Spalten: 'source','distance_km','avg_heart_rate','calories'
-    Modifiziert eine Kopie und gibt sie zurück.
+    Nutzt Konfiguration für Bins und Grenzen.
+    Gibt DataFrame mit zusätzlichen Tracking-Spalten zurück:
+    - calories_imputed: Boolean (wurde der Wert imputiert?)
+    - imputation_level: String (welche Ebene wurde genutzt?)
     """
     out = df.copy()
 
     # Hilfsbins
-    out["dist_bin"] = _build_distance_bins(out["distance_km"])
-    out["hr_bin"] = _build_hr_bins_per_source(out, "avg_heart_rate")
+    out["_dist_bin"] = _build_distance_bins(out["distance_km"], config)
+    out["_hr_bin"] = _build_hr_bins_per_source(out, config, "avg_heart_rate")
 
     # Nur fehlende/fehlerhafte Calories anfassen
     out["calories"] = pd.to_numeric(out["calories"], errors="coerce")
     mask_bad = out["calories"].isna() | (out["calories"] <= 0)
     out.loc[mask_bad, "calories"] = np.nan
 
-    # Median-Tabellen
-    med3 = out.groupby(["source", "dist_bin", "hr_bin"], dropna=False)[
-        "calories"
-    ].median()
-    med2 = out.groupby(["source", "dist_bin"], dropna=False)["calories"].median()
-    med1 = out.groupby(["source"], dropna=False)["calories"].median()
-    med0 = out["calories"].median()
+    # Median-Tabellen (4 Ebenen)
+    medians = {
+        "level3": out.groupby(["source", "_dist_bin", "_hr_bin"], dropna=False)[
+            "calories"
+        ].median(),
+        "level2": out.groupby(["source", "_dist_bin"], dropna=False)[
+            "calories"
+        ].median(),
+        "level1": out.groupby(["source"], dropna=False)["calories"].median(),
+        "level0": out["calories"].median(),
+    }
+
+    # Tracking-Spalten initialisieren
+    out["calories_imputed"] = False
+    out["imputation_level"] = pd.NA
 
     def _fill_row(row):
         if pd.notna(row["calories"]):
-            return row["calories"]
-        v = med3.get((row["source"], row["dist_bin"], row["hr_bin"]), np.nan)
-        if pd.isna(v):
-            v = med2.get((row["source"], row["dist_bin"]), np.nan)
-        if pd.isna(v):
-            v = med1.get(row["source"], np.nan)
-        if pd.isna(v):
-            v = med0
-        return v
+            return row["calories"], False, pd.NA
 
-    out.loc[:, "calories"] = out.apply(_fill_row, axis=1)
+        # Stufenweise Suche
+        # Level 3: source + dist_bin + hr_bin
+        v = medians["level3"].get(
+            (row["source"], row["_dist_bin"], row["_hr_bin"]), np.nan
+        )
+        if pd.notna(v):
+            return v, True, "level3"
 
-    # Aufräumen
-    out.drop(columns=["dist_bin", "hr_bin"], inplace=True)
+        # Level 2: source + dist_bin
+        v = medians["level2"].get((row["source"], row["_dist_bin"]), np.nan)
+        if pd.notna(v):
+            return v, True, "level2"
+
+        # Level 1: source
+        v = medians["level1"].get(row["source"], np.nan)
+        if pd.notna(v):
+            return v, True, "level1"
+
+        # Level 0: global
+        return medians["level0"], True, "level0"
+
+    # Anwenden
+    result = out.apply(
+        lambda row: (
+            _fill_row(row)
+            if pd.isna(row["calories"]) or row["calories"] <= 0
+            else (row["calories"], False, pd.NA)
+        ),
+        axis=1,
+        result_type="expand",
+    )
+
+    out["calories"] = result[0]
+    out["calories_imputed"] = result[1]
+    out["imputation_level"] = result[2]
+
+    # Log Summary
+    if out["calories_imputed"].any():
+        imputation_summary = out[out["calories_imputed"]][
+            "imputation_level"
+        ].value_counts()
+        logger.info(f"Calories imputation summary:\n{imputation_summary}")
+
+    # Cleanup temporary bins
+    out.drop(columns=["_dist_bin", "_hr_bin"], inplace=True)
+
     return out
 
 
-def _count_changed(series_old: pd.Series, series_new: pd.Series) -> int:
-    """
-    Zählt, wie viele Werte sich zwischen zwei Serien unterscheiden.
-    (Vermeidet Linter-Warnung zu .sum() auf bool.)
-    """
-    return np.count_nonzero(series_old.ne(series_new))
+print("✅ Imputation Helper-Funktionen definiert")
+```
+
+#### 2.0.5 Pipeline-Pattern
+
+Das **Pipeline-Pattern** orchestriert alle Bereinigungsschritte in einer robusten, nachvollziehbaren Sequenz. Es besteht aus zwei Klassen: `CleaningStep` (definiert einzelne Schritte) und `DataCleaningPipeline` (führt Schritte aus).
+
+**Komponenten:**
+
+**1. `CleaningStep` (Dataclass)**
+- **name**: Eindeutiger Schrittname (z.B. "Remove Duplicates")
+- **function**: Die auszuführende Funktion (z.B. `step_remove_duplicates`)
+- **description**: Lesbare Beschreibung für Dokumentation
+- **is_critical**: Wenn ein Fehler auftritt, soll die Pipeline stoppen (True) oder weiterlaufen (False)
+
+**2. `DataCleaningPipeline` (Orchestrator)**
+- **`__init__(source, config)`**: Initialisiert Pipeline mit Quelle ("Garmin"/"Apple") und Konfiguration
+- **`add_step(step)`**: Fügt CleaningStep hinzu (Fluent Interface → Method Chaining möglich)
+- **`run(df)`**: Führt alle Schritte sequenziell aus und gibt (cleaned_df, report) zurück
+
+**Ablauf der `run()`-Methode:**
+
+1. **Initialisierung**: Speichert initial_rows, erstellt DataFrame-Kopie
+2. **Für jeden Schritt**:
+   - Loggt Start: "[1/8] Starting: Date Imputation"
+   - Misst rows_before
+   - Führt step.function(df, config, report) aus
+   - Misst rows_after
+   - Dokumentiert in CleaningReport
+   - **Fehlerbehandlung**:
+     - `is_critical=True` → Pipeline stoppt bei Fehler
+     - `is_critical=False` → Warnung, Pipeline läuft weiter
+3. **Finalisierung**: Speichert final_rows, loggt Completion
+
+---
+
+**Fehlerbehandlung:**
+
+| Schritt-Typ | Fehler-Strategie | Beispiel |
+|-------------|------------------|----------|
+| **Critical** | Pipeline stoppt sofort | "Validate Essentials" (Pflichtfelder fehlen) |
+| **Non-Critical** | Warnung, weiterlaufen | "Calories Imputation" (kann später imputiert werden) |
+
+---
+
+**Vorteile:**
+
+- **Modularität**: Jeder Schritt ist unabhängig testbar und wiederverwendbar
+- **Wiederverwendbarkeit**: Gleiche Pipeline für Garmin und Apple (8 identische Schritte)
+- **Fehlertoleranz**: Nicht-kritische Schritte können fehlschlagen ohne Pipeline-Abbruch
+- **Transparenz**: Jeder Schritt wird geloggt und im CleaningReport dokumentiert
+- **Audit Trail**: Vollständige Nachvollziehbarkeit aller Bereinigungsschritte
+- **Fluent API**: Method Chaining (`.add_step().add_step()`) macht Code lesbar
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.840367Z', start_time: '2025-11-13T09:25:13.831949Z'}
+@dataclass
+class CleaningStep:
+    """Definition eines Bereinigungsschritts"""
+
+    name: str
+    function: Callable
+    description: str
+    is_critical: bool = False  # Wenn True, Fehler stoppen Pipeline
+
+
+class DataCleaningPipeline:
+    """Robuste Pipeline für Data Cleaning mit Fehlerbehandlung"""
+
+    def __init__(self, source: str, config: DataCleaningConfig):
+        self.source = source
+        self.config = config
+        self.report = CleaningReport(source)
+        self.steps: List[CleaningStep] = []
+
+    def add_step(self, step: CleaningStep):
+        """Fügt einen Schritt zur Pipeline hinzu"""
+        self.steps.append(step)
+        return self  # Diese Zeile ermöglicht Method Chaining
+
+    def run(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, CleaningReport]:
+        """
+        Führt alle Schritte sequenziell aus.
+        Returns: (cleaned_df, report)
+        """
+        self.report.initial_rows = len(df)
+        current_df = df.copy()
+
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Starting Data Cleaning Pipeline: {self.source.upper()}")
+        logger.info(f"Initial rows: {len(current_df)}")
+        logger.info(f"{'='*60}\n")
+
+        for i, step in enumerate(self.steps, 1):
+            try:
+                logger.info(f"[{i}/{len(self.steps)}] Starting: {step.name}")
+                rows_before = len(current_df)
+
+                # Schritt ausführen
+                current_df = step.function(current_df, self.config, self.report)
+
+                rows_after = len(current_df)
+                self.report.add_step(step.name, rows_before, rows_after)
+
+                # Kritischer Check
+                if step.is_critical and len(current_df) == 0:
+                    raise ValueError(f"Critical step '{step.name}' removed all data!")
+
+            except Exception as e:
+                logger.error(f"Error in step '{step.name}': {str(e)}")
+                if step.is_critical:
+                    raise
+                else:
+                    logger.warning(f"Skipping non-critical step '{step.name}'")
+
+        self.report.final_rows = len(current_df)
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Pipeline Complete: {self.source.upper()}")
+        logger.info(f"Final rows: {len(current_df)}")
+        logger.info(f"{'='*60}\n")
+
+        return current_df, self.report
+
+
+print("✅ Pipeline-Pattern definiert")
+```
+
+#### 2.0.6 Datenqualitäts-Metriken
+
+Die `DataQualityChecker`-Klasse bewertet die Datenqualität nach bereinigten Datensätzen anhand etablierter **Data Quality Dimensions**. [Definition zu Data Quality Dimensions](https://dqops.com/docs/dqo-concepts/data-quality-dimensions/). 
+
+Sie liefert quantifizierbare Metriken für Qualitätssicherung.
+
+**Verwendung in der Pipeline:**
+Nach Abschluss der Bereinigung wird `assess_quality()` aufgerufen, um die Qualität des finalen Datensatzes zu messen und zu dokumentieren.
+
+**Ablauf:**
+
+1. **assess_quality()**: Berechnet Metriken für alle 4 Qualitätsdimensionen
+2. **quality_report()**: Formatiert die Metriken als DataFrame mit Status-Indikatoren
+
+**Qualitätsdimensionen:**
+
+| Dimension | Berechnung | Beispiel-Metrik | Bedeutung |
+|-----------|------------|-----------------|-----------|
+| **Completeness** | `1 - (NaN / total)` pro Spalte | `distance_km: 0.98` | 98% der Distanzwerte vorhanden |
+| **Validity** | Anteil plausibel mittels `DataValidator` | `pace: 0.95` | 95% der Pace-Werte in realistischem Bereich |
+| **Consistency** | Logische Konsistenz zwischen Variablen | `hr_max_vs_avg: 0.99` | 99% konsistent (max ≥ avg) |
+| **Uniqueness** | `1 - (duplicates / total)` | `workouts: 1.0` | Keine Duplikate vorhanden |
+
+**Vorteile:**
+
+- **Standardisiert**: Nutzt etablierte Data Quality Framework-Dimensionen
+- **Automatisiert**: Keine manuelle Inspektion nötig
+- **Vergleichbar**: Konsistente Metriken über Garmin und Apple hinweg
+- **Actionable**: Status-Indikatoren (✅ ≥95%, ⚠️ 85-95%, ❌ <85%) zeigen Handlungsbedarf
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.891044Z', start_time: '2025-11-13T09:25:13.885513Z'}
+class DataQualityChecker:
+    """Automated data quality assessment"""
+
+    @staticmethod
+    def assess_quality(df: pd.DataFrame, config: DataCleaningConfig) -> dict:
+        """
+        Returns comprehensive quality metrics
+        """
+        metrics = {
+            "total_rows": len(df),
+            "completeness": {},
+            "validity": {},
+            "consistency": {},
+            "uniqueness": {},
+        }
+
+        # Completeness (Vollständigkeit)
+        for col in df.columns:
+            metrics["completeness"][col] = 1 - (df[col].isna().sum() / len(df))
+
+        # Validity (Plausibilität)
+        validator = DataValidator()
+
+        if "distance_km" in df.columns and "duration_sec" in df.columns:
+            metrics["validity"]["distance"] = validator.validate_distance(
+                df, config
+            ).mean()
+            metrics["validity"]["duration"] = validator.validate_duration(
+                df, config
+            ).mean()
+            metrics["validity"]["pace"] = validator.validate_pace(df, config).mean()
+
+        if "avg_heart_rate" in df.columns:
+            metrics["validity"]["hr"] = validator.validate_heart_rate(df, config).mean()
+
+        # Consistency
+        if "max_heart_rate" in df.columns and "avg_heart_rate" in df.columns:
+            hr_check = validator.validate_hr_consistency(df, config)
+            metrics["consistency"]["hr_max_vs_avg"] = 1 - (
+                hr_check["conflict_mask"].sum() / len(df)
+            )
+
+        # Uniqueness
+        if all(
+            col in df.columns
+            for col in ["source", "date", "distance_km", "duration_sec"]
+        ):
+            dup_key = ["source", "date", "distance_km", "duration_sec"]
+            metrics["uniqueness"]["workouts"] = 1 - (
+                df.duplicated(subset=dup_key).sum() / len(df)
+            )
+
+        return metrics
+
+    @staticmethod
+    def quality_report(metrics: dict) -> pd.DataFrame:
+        """Formatiert Metriken als DataFrame"""
+        records = []
+
+        for category, values in metrics.items():
+            if isinstance(values, dict):
+                for key, value in values.items():
+                    records.append(
+                        {
+                            "category": category,
+                            "metric": key,
+                            "value": value,
+                            "status": (
+                                "✅"
+                                if value >= 0.95
+                                else ("⚠️" if value >= 0.85 else "❌")
+                            ),
+                        }
+                    )
+
+        return pd.DataFrame(records)
+
+
+print("✅ Datenqualitäts-Checker definiert")
+```
+
+#### 2.0.7 Modularisierte Bereinigungsschritte
+
+Die **8 Bereinigungsfunktionen** sind als eigenständige, wiederverwendbare Module implementiert. Jede Funktion erhält `(df, config, report)` und gibt einen bereinigten DataFrame zurück.
+
+**Verwendung in der Pipeline:**
+Diese Funktionen werden in `DataCleaningPipeline` über `CleaningStep`-Objekte eingefügt und sequenziell ausgeführt.
+
+**Die 8 Bereinigungsschritte:**
+
+| # | Funktion | Beschreibung |
+|---|----------|--------------|
+| **1** | `step_impute_dates()` | Imputiert fehlende `date`-Werte aus `export_date` (Ordnername), um Datenverlust zu vermeiden |
+| **2** | `step_remove_duplicates()` | Entfernt Duplikate basierend auf `(source, date, distance_km, duration_sec)` |
+| **3** | `step_validate_essentials()` | Droppt Zeilen ohne `distance_km` oder `duration_sec` (essenzielle Metriken) |
+| **4** | `step_validate_plausibility()` | Filtert unrealistische Werte für Distanz, Dauer und Pace mittels `DataValidator` |
+| **5** | `step_clean_heart_rate()` | Bereinigt HR-Werte (Plausibilität, Konsistenz max≥avg), imputiert fehlende Werte mit Median |
+| **6** | `step_impute_calories()` | Gruppenbasierte Imputation (4-Level-Fallback) + Winsorising für Kalorien |
+| **7** | `step_final_hr_sweep()` | Entfernt Zeilen mit physiologisch unrealistischen Herzfrequenzwerten (80–210 bpm) |
+| **8** | `step_finalize_types()` | Setzt finale Datentypen (`category` für activity_type und source) |
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.958158Z', start_time: '2025-11-13T09:25:13.948755Z'}
+# Step 1: Date Imputation
+def step_impute_dates(
+    df: pd.DataFrame, config: DataCleaningConfig, report: CleaningReport
+) -> pd.DataFrame:
+    """Imputiert fehlende Datumsangaben aus export_date"""
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    export_dt = pd.to_datetime(df["export_date"], errors="coerce")
+
+    mask_date_missing = df["date"].isna() & export_dt.notna()
+    df.loc[mask_date_missing, "date"] = export_dt.loc[mask_date_missing] + pd.Timedelta(
+        hours=12
+    )
+
+    logger.info(f"Imputiert: {mask_date_missing.sum()} Datumsangaben aus export_date")
+    return df
+
+
+# Step 2: Remove Duplicates
+def step_remove_duplicates(
+    df: pd.DataFrame, config: DataCleaningConfig, report: CleaningReport
+) -> pd.DataFrame:
+    """Removes duplicate workouts"""
+    return df.drop_duplicates(subset=["source", "date", "distance_km", "duration_sec"])
+
+
+# Step 3: Validate Essentials
+def step_validate_essentials(
+    df: pd.DataFrame, config: DataCleaningConfig, report: CleaningReport
+) -> pd.DataFrame:
+    """Drops rows with missing essential values"""
+    essential = ["distance_km", "duration_sec"]
+    return df.dropna(subset=essential)
+
+
+# Step 4: Plausibility Checks
+def step_validate_plausibility(df, config, report):
+    validator = DataValidator()
+
+    # Masken einmal berechnen
+    mask_dist = validator.validate_distance(df, config)
+    mask_dur = validator.validate_duration(df, config)
+    mask_pace = validator.validate_pace(df, config)
+
+    # Kombinierte Maske
+    mask = mask_dist & mask_dur & mask_pace
+
+    # Statistik aus gecachten Masken
+    removed_reasons = {
+        "distance": (
+            ~mask_dist
+        ).sum(),  # Das Zeichen "~" steht für die Negation der Maske, also die Anzahl der fehlerhaften Einträge
+        "duration": (~mask_dur).sum(),
+        "pace": (~mask_pace).sum(),
+    }
+
+    logger.info(f"Plausibility failures by reason: {removed_reasons}")
+    return df[mask].copy()
+
+
+# Step 5: Heart Rate Cleaning
+def step_clean_heart_rate(
+    df: pd.DataFrame, config: DataCleaningConfig, report: CleaningReport
+) -> pd.DataFrame:
+    """Cleans and imputes heart rate values"""
+    df = df.copy()
+    validator = DataValidator()
+
+    # Plausibilität prüfen
+    df.loc[
+        (df["avg_heart_rate"] <= 0) | (df["avg_heart_rate"] > 300), "avg_heart_rate"
+    ] = np.nan
+    df.loc[
+        (df["max_heart_rate"] <= 0) | (df["max_heart_rate"] > 300), "max_heart_rate"
+    ] = np.nan
+
+    # Konsistenzregel: max_hr < avg_hr
+    hr_check = validator.validate_hr_consistency(df, config)
+
+    # Rundungstoleranz anwenden
+    df.loc[hr_check["tolerance_mask"], "max_heart_rate"] = df.loc[
+        hr_check["tolerance_mask"], "avg_heart_rate"
+    ]
+
+    # Harte Konflikte → NaN
+    df.loc[hr_check["conflict_mask"], ["avg_heart_rate", "max_heart_rate"]] = np.nan
+
+    logger.info(
+        f"HR Konflikte: {hr_check['inverted_mask'].sum()} total, "
+        f"{hr_check['tolerance_mask'].sum()} toleriert, "
+        f"{hr_check['conflict_mask'].sum()} hart (→ NaN)"
+    )
+
+    # Median-Imputation je Quelle
+    for col in ["avg_heart_rate", "max_heart_rate"]:
+        before_nan = df[col].isna().sum()
+        med = df.groupby("source")[col].transform("median")
+        df[col] = df[col].fillna(med)
+        after_nan = df[col].isna().sum()
+        logger.info(
+            f"{col}: {before_nan} NaN → {after_nan} NaN (imputiert: {before_nan - after_nan})"
+        )
+
+    return df
+
+
+# Step 6: Calories Imputation
+def step_impute_calories(
+    df: pd.DataFrame, config: DataCleaningConfig, report: CleaningReport
+) -> pd.DataFrame:
+    """Imputiert und winsorisiert Kalorienwerte"""
+    df = df.copy()
+
+    # Fehlerhafte Werte → NaN
+    df["calories"] = pd.to_numeric(df["calories"], errors="coerce")
+    before_bad = (df["calories"].isna() | (df["calories"] <= 0)).sum()
+    df.loc[df["calories"] <= 0, "calories"] = np.nan
+
+    # Gruppenbasierte Imputation
+    cal_before_impute = df["calories"].isna().sum()
+    df = _impute_grouped_calories(df, config)
+    cal_after_impute = df["calories"].isna().sum()
+
+    logger.info(
+        f"Calories: {before_bad} fehlerhaft/fehlend, "
+        f"Imputation: {cal_before_impute} NaN → {cal_after_impute} NaN"
+    )
+
+    # Winsorising: absolute Grenzen
+    cal_before_clip = df["calories"].copy()
+    df["calories"] = df["calories"].clip(
+        lower=config.CALORIES_MIN, upper=config.CALORIES_MAX
+    )
+    wins_abs = _count_changed(cal_before_clip, df["calories"])
+
+    # Winsorising: kcal/km-Verhältnis
+    kcal_per_km = (df["calories"] / df["distance_km"]).clip(
+        lower=config.CALORIES_PER_KM_MIN, upper=config.CALORIES_PER_KM_MAX
+    )
+    cal_before_ratio = df["calories"].copy()
+    df["calories"] = (kcal_per_km * df["distance_km"]).round(0)
+    wins_ratio = _count_changed(cal_before_ratio, df["calories"])
+
+    logger.info(f"Winsorising: absolut={wins_abs}, kcal/km={wins_ratio}")
+
+    return df
+
+
+# Step 7: Final HR Sweep
+def step_final_hr_sweep(
+    df: pd.DataFrame, config: DataCleaningConfig, report: CleaningReport
+) -> pd.DataFrame:
+    """Entfernt Zeilen mit physiologisch unrealistischen Herzfrequenzen"""
+    validator = DataValidator()
+    return df[validator.validate_heart_rate(df, config)].copy()
+
+
+# Step 8: Finalize Types
+def step_finalize_types(
+    df: pd.DataFrame, config: DataCleaningConfig, report: CleaningReport
+) -> pd.DataFrame:
+    """Setzt finale Datentypen"""
+    df = df.copy()
+    df["activity_type"] = df["activity_type"].astype("category")
+    df["source"] = df["source"].astype("category")
+    return df
+
+
+print("✅ Alle Bereinigungsschritte definiert")
 ```
 
 ### 2.1 Garmin Data Cleaning
 
-**2.1.1 Filter nach Laufsport**
+**Strategie:**
+Modulare Pipeline mit transparentem Reporting und Qualitätsprüfung.
 
-**Ziel:**
-Nur Laufaktivitäten (`activity_type == "Running"`) für die Analyse behalten, um Vergleichbarkeit sicherzustellen.
-Dadurch werden Pace, Herzfrequenz und Kalorienwerte zwischen den Einheiten konsistent.
+**Schritte:**
+1. Filter nach Laufsport
+2. Reduktion auf Kernvariablen  
+3. Typisierung & Einheitennormalisierung
+4. Pipeline-basierte Bereinigung
+5. Qualitätsbewertung
 
-**Vorgehen:**
-Nach dem Import werden alle Aktivitäten gefiltert, sodass nur Zeilen mit `Running` erhalten bleiben.
-
-**Ergebnis:**
-Der Datensatz enthält ausschliesslich Lauftrainings und bildet die Grundlage für alle weiteren Bereinigungs- und Transformationsschritte.
-
----
-
-**2.1.2 Reduktion auf Kern-Aktivitäten**
-
-**Ziel:**
-Nur die Variablen behalten, die für Analyse und Vergleich mit anderen Quellen (z. B. Apple Health) relevant sind.
-Damit wird die Datenmenge reduziert und das Schema harmonisiert.
-
-**Vorgehen:**
-Nach dem Import und dem Lauf-Filter werden ausschliesslich folgende Kernvariablen beibehalten:
-`date`, `activity_type`, `distance_km`, `duration`, `calories`,
-`avg_heart_rate`, `max_heart_rate`, `source`, `export_date`.
-Alle anderen Variablen werden verworfen, da sie für LE2–LE4 nicht benötigt werden.
-
-**Ergebnis:**
-Ein kompakter, auf Analyse und Vergleich ausgerichteter Datensatz mit identischer Variablenstruktur zu Apple Health.
-
----
+#### 2.1.1 Filter nach Laufsport & Schema-Reduktion
 
 **2.1.3 Typisierung und Einheiten**
 
@@ -443,9 +1112,8 @@ Alle Verarbeitungsschritte sind in der Funktion `clean_garmin_data()` dokumentie
 #### 2.1.1 Filter nach Laufsport
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.637682Z', start_time: '2025-10-11T08:17:18.620736Z'}
-# Analysefokus definieren (Laufsport)
-
+#| ExecuteTime: {end_time: '2025-11-13T09:25:13.991867Z', start_time: '2025-11-13T09:25:13.980134Z'}
+# Garmin-Daten importieren und filtern
 garmin_df = import_garmin_activities()
 
 if "activity_type" in garmin_df.columns:
@@ -454,17 +1122,10 @@ if "activity_type" in garmin_df.columns:
         garmin_df["activity_type"].str.lower().str.contains("run", na=False)
     ].copy()
     after = len(garmin_df)
-    print(
-        f"\n✅ Garmin: Filter nach Laufsport abgeschlossen. Verbleibende Aktivitäten: {len(garmin_df)}"
-    )
+    logger.info(f"Garmin: Filter nach Laufsport: {before} → {after} (-{before-after})")
     print(garmin_df["activity_type"].value_counts())
-```
 
-#### 2.1.2 Reduktion auf Kern- Aktivitäten
-
-```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.781197Z', start_time: '2025-10-11T08:17:18.773467Z'}
-# Gemeinsames Schema mit Apple (LE1-Ergebnis)
+# Reduktion auf Kernvariablen
 core_cols = [
     "date",
     "activity_type",
@@ -477,27 +1138,23 @@ core_cols = [
     "export_date",
 ]
 
-# 1) Auf vorhandene Kernspalten reduzieren
 present = [c for c in core_cols if c in garmin_df.columns]
 missing = [c for c in core_cols if c not in garmin_df.columns]
 
 garmin_df_core = garmin_df[present].copy()
 
-# 2) Fehlende Kernspalten als leere Spalten anlegen (kompatibel zu Apple)
 for c in missing:
     garmin_df_core[c] = pd.NA
 
-# 3) Spalten in Zielreihenfolge anordnen
 garmin_df_core = garmin_df_core[core_cols]
 
-print("\n✅ Garmin: Reduktion auf Kern-Aktivitäten abgeschlossen.")
-print(f"Behaltene Spalten: {list(garmin_df_core.columns)}")
+logger.info(f"Garmin: Reduktion auf {len(core_cols)} Kernvariablen abgeschlossen")
 ```
 
-#### 2.1.3 Typisierung und Einheiten
+#### 2.1.2 Typisierung und Einheiten
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:18.894407Z', start_time: '2025-10-11T08:17:18.880992Z'}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:14.046271Z', start_time: '2025-11-13T09:25:14.027870Z'}
 def convert_duration_to_seconds(duration_str):
     """
     Converts Garmin duration strings ('hh:mm:ss' or 'mm:ss') into total seconds.
@@ -524,17 +1181,18 @@ def clean_garmin_typing(df):
     """
     df = df.copy()
 
-    # 1️ Datum in datetime-Format konvertieren
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    # 1️⃣ Datum in datetime-Format konvertieren
+    df["export_date"] = pd.to_datetime(df["export_date"], errors="coerce")
 
-    # 2️ Dauer (hh:mm:ss → Sekunden)
+    # 2️⃣ Dauer (hh:mm:ss → Sekunden)
     df["duration_sec"] = df["duration"].apply(convert_duration_to_seconds)
 
-    # 3️ Distanz prüfen und ggf. Meter → Kilometer konvertieren
+    # 3️⃣ Distanz prüfen und ggf. Meter → Kilometer konvertieren
     if df["distance_km"].dropna().max() > 200:
+        logger.info("Garmin: Distanz scheint in Metern zu sein → Konvertierung zu km")
         df["distance_km"] = df["distance_km"] / 1000
 
-    # 4️ Numerische Typisierung
+    # 4️⃣ Numerische Typisierung
     numeric_cols = [
         "distance_km",
         "duration_sec",
@@ -545,11 +1203,15 @@ def clean_garmin_typing(df):
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # 5️ Kategorische Typisierung
+    # 5️⃣ Kategorische Typisierung
     df["activity_type"] = df["activity_type"].astype("category")
     df["source"] = df["source"].astype("category")
 
-    print("\n✅ Garmin: Typisierung & Einheiten abgeschlossen.")
+    logger.info("Garmin: Typisierung & Einheiten abgeschlossen")
+
+    # Statistiken anzeigen
+    print("\nNumerische Variablen (Garmin):")
+    print(df[numeric_cols].describe().T.round(2))
 
     return df
 
@@ -558,305 +1220,147 @@ def clean_garmin_typing(df):
 garmin_df_typed = clean_garmin_typing(garmin_df_core)
 ```
 
-#### 2.1.3 Data Cleaning
+#### 2.1.3 Pipeline-basierte Bereinigung
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:19.050346Z', start_time: '2025-10-11T08:17:18.975031Z'}
-def clean_garmin_data(df):
-    """
-    Entfernt Duplikate, behandelt Missing/Fehler und Ausreisser
-    für Running-Daten aus Garmin. Erwartet Spalten:
-    ['date','activity_type','distance_km','duration','duration_sec',
-     'calories','avg_heart_rate','max_heart_rate','source','export_date']
-    """
-    df = df.copy()
+#| ExecuteTime: {end_time: '2025-11-13T09:25:14.111087Z', start_time: '2025-11-13T09:25:14.057420Z'}
+# Garmin Cleaning Pipeline aufbauen
+garmin_pipeline = DataCleaningPipeline("Garmin", config)
 
-    # 0) Essenzielle Spalten sicherstellen (date ist NICHT essentiell)
-    essential = ["distance_km", "duration_sec"]
-    for c in essential:
-        if c not in df.columns:
-            raise ValueError(f"Erwartete Spalte fehlt: {c}")
-
-    # 0.1) Datums-Imputation aus export_date (Status: vorher/nachher)
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    export_dt = pd.to_datetime(df["export_date"], errors="coerce")
-
-    before_date_nan = df["date"].isna().sum()
-    mask_date_missing = df["date"].isna() & export_dt.notna()
-    df.loc[mask_date_missing, "date"] = export_dt.loc[mask_date_missing] + pd.Timedelta(
-        hours=12
+garmin_pipeline.add_step(
+    CleaningStep(
+        name="Date Imputation",
+        function=step_impute_dates,
+        description="Imputiert fehlende Datumsangaben aus export_date",
+        is_critical=False,
     )
-    after_date_nan = df["date"].isna().sum()
-    print(
-        f"Date-Imputation: NaN {before_date_nan}→{after_date_nan} (aus export_date gesetzt: {mask_date_missing.sum()})"
+).add_step(
+    CleaningStep(
+        name="Remove Duplicates",
+        function=step_remove_duplicates,
+        description="Entfernt Duplikate basierend auf Schlüsselfeldern",
+        is_critical=False,
     )
-
-    # 1) Duplikate (quellenweise) entfernen
-    before = len(df)
-    df = df.drop_duplicates(subset=["source", "date", "distance_km", "duration_sec"])
-    print(f"Duplikate entfernt: {before - len(df)}")
-
-    # 2) Essentielle Missing droppen (ohne 'date')
-    before = len(df)
-    df = df.dropna(subset=essential)
-    print(f"Zeilen ohne essenzielle Werte entfernt: {before - len(df)}")
-
-    # 3) Harte Plausibilitätsgrenzen – soft
-    before = len(df)
-    mask_plaus = df["distance_km"].between(0.05, 60, inclusive="both") & df[
-        "duration_sec"
-    ].between(
-        60, 18000, inclusive="both"
-    )  # 1–5 h
-    df = df[mask_plaus].copy()
-    print(f"Unplausible Distanz/Dauer entfernt: {before - len(df)}")
-
-    # 4) Pace-Check – Anfängerfreundlich (2.3–10.5 min/km)
-    pace_min_per_km = (df["duration_sec"] / 60.0) / df["distance_km"]
-    before = len(df)
-    df = df[pace_min_per_km.between(2.3, 10.5, inclusive="both")].copy()
-    print(f"Pace-Ausreisser entfernt: {before - len(df)}")
-
-    # 5) Herzfrequenzen behandeln (Plausibilität & Imputation) – mit Status
-    before_nan_avg = df["avg_heart_rate"].isna().sum()
-    before_nan_max = df["max_heart_rate"].isna().sum()
-
-    # Plausibilität
-    df.loc[
-        (df["avg_heart_rate"] <= 0) | (df["avg_heart_rate"] > 300), "avg_heart_rate"
-    ] = np.nan
-    df.loc[
-        (df["max_heart_rate"] <= 0) | (df["max_heart_rate"] > 300), "max_heart_rate"
-    ] = np.nan
-
-    # Konsistenzregel: max_hr < avg_hr
-    mask_inverted = (
-        df["max_heart_rate"].notna()
-        & df["avg_heart_rate"].notna()
-        & (df["max_heart_rate"] < df["avg_heart_rate"])
+).add_step(
+    CleaningStep(
+        name="Validate Essentials",
+        function=step_validate_essentials,
+        description="Entfernt Zeilen ohne distance/duration",
+        is_critical=True,
     )
-    tol_mask = mask_inverted & ((df["avg_heart_rate"] - df["max_heart_rate"]) <= 3)
-    df.loc[tol_mask, "max_heart_rate"] = df.loc[
-        tol_mask, "avg_heart_rate"
-    ]  # Rundungstoleranz
-    hard_conflict = mask_inverted & ~tol_mask
-    df.loc[hard_conflict, ["avg_heart_rate", "max_heart_rate"]] = np.nan
-
-    # Median-Imputation je Quelle
-    for col in ["avg_heart_rate", "max_heart_rate"]:
-        med = df.groupby("source")[col].transform("median")
-        df[col] = df[col].fillna(med)
-
-    after_nan_avg = df["avg_heart_rate"].isna().sum()
-    after_nan_max = df["max_heart_rate"].isna().sum()
-    print(
-        f"HF-Bereinigung: avg_hr NaN {before_nan_avg}→{after_nan_avg}, "
-        f"max_hr NaN {before_nan_max}→{after_nan_max}, "
-        f"Konflikte (max<avg): {int(mask_inverted.sum())}, davon toleriert: {int(tol_mask.sum())}, hart: {int(hard_conflict.sum())}"
+).add_step(
+    CleaningStep(
+        name="Plausibility Checks",
+        function=step_validate_plausibility,
+        description="Validiert Distanz, Dauer, Pace",
+        is_critical=False,
     )
-
-    # 6) Kalorien: fehlerhafte/fehlende Werte gruppenbasiert imputieren – mit Status
-    df["calories"] = pd.to_numeric(df["calories"], errors="coerce")
-    before_bad_cal = (
-        df["calories"].isna().sum() + (df["calories"] <= 0).fillna(False).sum()
+).add_step(
+    CleaningStep(
+        name="Heart Rate Cleaning",
+        function=step_clean_heart_rate,
+        description="Bereinigt und imputiert Herzfrequenzwerte",
+        is_critical=False,
     )
-
-    # Negative/0 → NaN
-    df.loc[df["calories"] <= 0, "calories"] = np.nan
-
-    # gruppenbasierte Imputation (nutzt _impute_grouped_calories)
-    cal_before_impute_nan = df["calories"].isna().sum()
-    df = _impute_grouped_calories(df)
-    cal_after_impute_nan = df["calories"].isna().sum()
-
-    # Winsorising: absolute Grenzen + kcal/km
-    cal_before_clip = df["calories"].copy()
-    df["calories"] = df["calories"].clip(lower=50, upper=3000)
-    wins_abs = _count_changed(cal_before_clip, df["calories"])
-
-    kcal_per_km = (df["calories"] / df["distance_km"]).clip(lower=25, upper=120)
-    cal_before_ratio_clip = df["calories"].copy()
-    df["calories"] = (kcal_per_km * df["distance_km"]).round(0)
-    wins_ratio = _count_changed(cal_before_ratio_clip, df["calories"])
-
-    print(
-        f"Kalorien: fehlerhaft/fehlend (vorher) {before_bad_cal}, "
-        f"Imputation NaN {cal_before_impute_nan}→{cal_after_impute_nan}, "
-        f"Winsorisiert (abs): {wins_abs}, Winsorisiert (kcal/km): {wins_ratio}"
+).add_step(
+    CleaningStep(
+        name="Calories Imputation",
+        function=step_impute_calories,
+        description="Gruppenbasierte Imputation und Winsorising",
+        is_critical=False,
     )
+).add_step(
+    CleaningStep(
+        name="Final HR Sweep",
+        function=step_final_hr_sweep,
+        description="Entfernt physiologisch unrealistische Herzfrequenzen",
+        is_critical=False,
+    )
+).add_step(
+    CleaningStep(
+        name="Finalize Types",
+        function=step_finalize_types,
+        description="Setzt finale Datentypen",
+        is_critical=False,
+    )
+)
 
-    # 7) Finaler HF-Sweep (physiologische Grenzen)
-    before = len(df)
-    df = df[df["avg_heart_rate"].between(80, 210, inclusive="both")]
-    print(f"HF-Ausreisser entfernt: {before - len(df)}")
+# Pipeline ausführen
+garmin_clean, garmin_report = garmin_pipeline.run(garmin_df_typed)
+```
 
-    # 8) Aufräumen / Typen sichern
-    df["activity_type"] = df["activity_type"].astype("category")
-    df["source"] = df["source"].astype("category")
+#### 2.1.4 Qualitätsbewertung & Report
 
-    print(f"✅ Bereinigung abgeschlossen – verbleibende Läufe: {len(df)}")
-    return df
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:14.129727Z', start_time: '2025-11-13T09:25:14.116676Z'}
+# Summary anzeigen
+garmin_summary = garmin_report.summary()
 
+# Detaillierter Schritte-Report
+print("\n📋 Detaillierter Bereinigungsbericht:")
+garmin_steps_df = garmin_report.to_dataframe()
+print(garmin_steps_df.to_string(index=False))
 
-garmin_clean = clean_garmin_data(garmin_df_typed)
+# Qualitätsmetriken berechnen
+print("\n📊 Datenqualitäts-Assessment:")
+garmin_quality = DataQualityChecker.assess_quality(garmin_clean, config)
+garmin_quality_df = DataQualityChecker.quality_report(garmin_quality)
+print(garmin_quality_df.to_string(index=False))
+
+# Bereinigte Daten anzeigen
+print(f"\n✅ Garmin bereinigte Daten: {len(garmin_clean)} Zeilen")
+garmin_clean.head()
 ```
 
 ### 2.2 Apple Data Cleaning
 
-**2.2.1 Filter nach Laufsport**
+**Strategie:**
+Identische Pipeline-basierte Bereinigung wie Garmin für konsistente Datenqualität.
 
-**Ziel:**
-Nur Laufaktivitäten (`activity_type == "Running"`) werden für die Analyse beibehalten, um direkte Vergleichbarkeit mit Garmin zu gewährleisten.
-Apple Health enthält zahlreiche weitere Aktivitätstypen (z. B. Gehen, Radfahren, Schwimmen), die für diese Arbeit ausgeschlossen werden.
-
-**Vorgehen:**
-Nach dem XML-Import werden alle Workouts gefiltert, deren `HKWorkoutActivityType` dem Typ *Running* entspricht.
-Sowohl „Indoor Running“ als auch „Outdoor Running“ werden gleich behandelt, da Apple sie unter dem gemeinsamen Typ „Running“ exportiert.
-
-**Ergebnis:**
-Der Datensatz enthält ausschliesslich Lauftrainings und ist damit direkt mit den Garmin-Workouts vergleichbar.
-
----
-
-**2.2.2 Typisierung und Einheiten (inkl. Reduktion)**
-
-**Ziel:**
-Die gefilterten Apple-Workouts werden in ein harmonisiertes Format gebracht, das strukturell und einheitlich zu Garmin passt.
-Dabei werden alle nicht relevanten Messwerte verworfen und die verbleibenden Variablen typisiert und auf gemeinsame Einheiten normiert.
-
-**Vorgehen:**
-Nach dem Import und der Filterung erfolgt eine Typisierung und Vereinheitlichung der Variablen:
-
-1. **Schema-Anpassung**
-   - `distance` → `distance_km`
-   - `duration` → `duration_sec`
-   Diese Umbenennung erfolgt ohne Berechnung, nur zur Angleichung an Garmin.
-
-2. **Datumsfelder**
-   - `date` und `export_date` werden in das Datumsformat (`datetime64`) konvertiert.
-
-3. **Numerische Variablen**
-   - `distance_km`, `duration_sec`, `calories`, `avg_heart_rate`, `max_heart_rate` werden als `float` typisiert.
-
-4. **Einheiten-Normalisierung**
-   - Falls `duration` in Minuten vorliegt (Median zwischen 10–200 → typische Laufzeit), erfolgt automatische Umrechnung in Sekunden (× 60).
-   - Falls Distanzen grösser als 200 auftreten, werden sie als Meter interpretiert und durch 1000 geteilt.
-
-5. **Kategorien**
-   - `activity_type` und `source` werden als kategoriale Variablen gesetzt.
-
-6. **Spaltenharmonisierung**
-   - Das endgültige Schema lautet:
-     `date`, `activity_type`, `distance_km`, `duration_sec`, `calories`,
-     `avg_heart_rate`, `max_heart_rate`, `source`, `export_date`.
-
-**Ergebnis:**
-Ein harmonisierter DataFrame `apple_df_typed`, der inhaltlich und strukturell dem Garmin-Datensatz entspricht und als Grundlage für die Bereinigung dient.
-
----
-
-**2.2.3 Data Cleaning**
-
-**Vorbedingungen:**
-- `date` korrekt typisiert (`datetime64`)
-- `activity_type` auf *Running* gefiltert
-- Einheiten normalisiert (km / s / kcal / bpm)
-
----
-
-**date**
-- **Missing:** falls leer, `NaT` beibehalten.
-- **Datenfehler:** Zukunftsdaten → `NaT`.
-- **Begründung:** Apple-Exporte enthalten ISO-Zeitstempel, daher selten fehlerhaft.
-
-**distance_km**
-- **Missing:** Zeilen mit `NaN` werden entfernt.
-- **Datenfehler:** ≤ 0 oder < 0.05 km → droppen.
-- **Ausreisser:** ausserhalb [0.05, 60] km oder Pace > 10.5 min/km → droppen.
-- **Begründung:** Negative oder extrem kleine Distanzen entstehen bei fehlerhaften GPS-Tracks oder unkalibrierten Indoor-Läufen.
-
-**duration_sec**
-- **Missing:** droppen.
-- **Datenfehler:** ≤ 0 s oder > 18 000 s (5 h) → droppen.
-- **Ausreisser:** Pace < 2.3 min/km oder > 10.5 min/km → droppen.
-- **Begründung:** Werte ausserhalb dieses Bereichs deuten auf fehlerhafte Zeitmessung oder Pausen hin.
-
-**calories**
-- **Missing oder fehlerhafte Werte (≤ 0):** gruppenbasierte Median-Imputation
-  - Distanz-Bins: [0–5), [5–10), [10–15), [15–25), [25–50) km
-  - Herzfrequenz-Bins: Quartile der `avg_heart_rate`
-  - Fallback: globaler Median
-- **Ausreisser:** absolute Grenzen [50, 3000] kcal; Verhältnis 25–120 kcal/km (Winsorising).
-- **Begründung:** Realistische Spannweite typischer Energieumsätze beim Laufen.
-
-**avg_heart_rate**
-- **Missing:** Median-Imputation pro Quelle (`source`).
-- **Datenfehler:** ≤ 0 bpm oder > 300 bpm → NaN.
-- **Ausreisser:** ausserhalb [80, 210] bpm → droppen.
-- **Begründung:** Sensorverluste oder Bewegungsartefakte können fehlerhafte Werte erzeugen.
-
-**max_heart_rate**
-- **Missing:** Median-Imputation pro Quelle (`source`).
-- **Konsistenzregel:**
-  - Wenn `max_hr < avg_hr` und Δ ≤ 3 → `max_hr = avg_hr`
-  - Sonst beide NaN (→ Imputation).
-- **Ausreisser:** > 230 bpm → droppen.
-- **Begründung:** Kurzzeitige Peaks oder Sensorfehler führen zu unrealistischen Maximalwerten.
-
-**source**
-- **Missing:** `"apple"` setzen.
-- **Typ:** `category`.
-- **Begründung:** Eindeutige Kennzeichnung der Datenquelle.
-
-**export_date**
-- **Missing:** aus Ordnerpfad abgeleitet, andernfalls `NaT`.
-- **Begründung:** Ermöglicht zeitliche Rückverfolgbarkeit des Datenexports.
-
----
-
-**Gesamtergebnis**
-
-Ein bereinigter Apple-Datensatz `apple_clean`, der:
-- nur Laufaktivitäten enthält,
-- auf dieselben Kernvariablen reduziert ist wie der Garmin-Datensatz,
-- konsistente Typen und Einheiten aufweist,
-- nach identischen Plausibilitäts- und Imputationsregeln bereinigt wurde.
-
-
+**Schritte:**
+1. Filter nach Laufsport
+2. Typisierung & Einheitennormalisierung (mit Apple-spezifischen Anpassungen)
+3. Pipeline-basierte Bereinigung (gleiche Steps wie Garmin)
+4. Qualitätsbewertung
 
 #### 2.2.1 Filter nach Laufsport
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:19.090477Z', start_time: '2025-10-11T08:17:19.082415Z'}
-# Hinweis: Apple-Codes sind z.B. "Running", "Walking", "Cycling", ...
+#| ExecuteTime: {end_time: '2025-11-13T09:25:39.454561Z', start_time: '2025-11-13T09:25:14.160006Z'}
+# Apple-Daten importieren und filtern
+apple_df_raw = import_apple_workouts()
+
 before = len(apple_df_raw)
 apple_df = apple_df_raw[
     apple_df_raw["activity_type"].str.lower().str.contains("running", na=False)
 ].copy()
 after = len(apple_df)
 
-print(
-    f"\n✅ Apple: Filter nach Laufsport abgeschlossen. Verbleibende Workouts: {after}/{before}"
-)
+logger.info(f"Apple: Filter nach Laufsport: {before} → {after} (-{before-after})")
 print(apple_df["activity_type"].value_counts())
 ```
 
 #### 2.2.2 Typisierung und Einheiten
 
+Apple Health hat unterschiedliche Einheitenkonventionen als Garmin:
+
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:19.213900Z', start_time: '2025-10-11T08:17:19.177636Z'}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:40.134524Z', start_time: '2025-11-13T09:25:40.024284Z'}
 def clean_apple_typing(df):
     """
-    Bringt den gefilterten Apple-Frame (Import -> Filter) ins harmonisierte Schema
-    und normalisiert Einheiten. Übernimmt damit die bisherige 'Reduktion'.
-    Erwartete Eingabe-Spalten (neutral aus Import):
+    Bringt den gefilterten Apple-Frame ins harmonisierte Schema
+    und normalisiert Einheiten. Apple-spezifische Anpassungen:
+    - Dauer oft in Minuten → Heuristik-basierte Konvertierung
+    - Distanz manchmal in Metern → Konvertierung zu km
+
+    Eingabe-Spalten (neutral aus Import):
       'date','activity_type','distance','duration','calories','avg_heart_rate','max_heart_rate','source','export_date'
     Ergebnis-Spalten (harmonisiert zu Garmin):
       'date','activity_type','distance_km','duration_sec','calories','avg_heart_rate','max_heart_rate','source','export_date'
     """
     df = df.copy()
 
-    # 1) Schema-Umbenennung (neutral -> harmonisiert), OHNE Umrechnung
+    # 1️⃣ Schema-Umbenennung (neutral → harmonisiert), OHNE Umrechnung
     rename_map = {}
     if "distance" in df.columns and "distance_km" not in df.columns:
         rename_map["distance"] = "distance_km"
@@ -865,11 +1369,25 @@ def clean_apple_typing(df):
     if rename_map:
         df.rename(columns=rename_map, inplace=True)
 
-    # 2) Datumsfelder
+    # 2️⃣ Datumsfeld (vereinheitlicht auf Garmin-Format "YYYY-MM-DD HH:MM:SS")
     df["date"] = pd.to_datetime(df.get("date"), errors="coerce")
+
+    # vorhandene tz-Infos entfernen, ohne Umrechnung
+    mask = df["date"].notna() & df["date"].apply(lambda x: getattr(x, "tzinfo", None) is not None)
+    if mask.any():
+        df.loc[mask, "date"] = df.loc[mask, "date"].dt.tz_localize(None)
+
+    # sicherstellen, dass es wirklich datetime64[ns] ist
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    # Format angleichen an Garmin
+    df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    # export_date kann bleiben wie er ist
     df["export_date"] = pd.to_datetime(df.get("export_date"), errors="coerce")
 
-    # 3) Numerik casten
+
+    # 3️⃣ Numerik casten
     num_cols = [
         "distance_km",
         "duration_sec",
@@ -883,27 +1401,28 @@ def clean_apple_typing(df):
         else:
             df[c] = np.nan
 
-    # 4) Einheiten-Normalisierung
-    # 4a) Dauer: Apple liefert oft Minuten -> Heuristik (typische Laufdauern 10–200)
+    # 4️⃣ Einheiten-Normalisierung (Apple-spezifisch)
+
+    # 4a) Dauer: Apple liefert oft Minuten → Heuristik (typische Laufdauern 10–200)
     med_dur = df["duration_sec"].median()
     if pd.notna(med_dur) and 10 <= med_dur <= 200:
         df["duration_sec"] = df["duration_sec"] * 60
-        print(
-            "ℹ️ Apple: duration_sec sah nach MINUTEN aus → in Sekunden umgerechnet (×60)."
+        logger.info(
+            "Apple: duration_sec war in MINUTEN → in Sekunden umgerechnet (×60)"
         )
 
-    # 4b) Distanz: dein Export liefert bereits km; falls irgendwas sehr groß wirkt (>200), als Meter interpretieren
+    # 4b) Distanz: Falls Werte > 200 (vermutlich Meter)
     if (df["distance_km"] > 200).any():
         df["distance_km"] = df["distance_km"] / 1000.0
-        print(
-            "ℹ️ Apple: distance_km enthielt offenbar Meter → in Kilometer umgerechnet (/1000)."
+        logger.info(
+            "Apple: distance_km war in METERN → in Kilometer umgerechnet (/1000)"
         )
 
-    # 5) Kategorien
+    # 5️⃣ Kategorien
     df["activity_type"] = df["activity_type"].astype("category")
     df["source"] = df["source"].astype("category")
 
-    # 6) Spaltenreihenfolge sichern (falls etwas fehlte, auffüllen)
+    # 6️⃣ Spaltenreihenfolge sichern (falls etwas fehlte, auffüllen)
     core_cols = [
         "date",
         "activity_type",
@@ -920,172 +1439,308 @@ def clean_apple_typing(df):
             df[c] = np.nan
     df = df[core_cols].copy()
 
-    # 7) Status
-    print(
-        "\n✅ Apple: Typisierung & Einheiten abgeschlossen (inkl. Schema-Umbenennung)."
-    )
-    print(
-        df[
-            [
-                "distance_km",
-                "duration_sec",
-                "calories",
-                "avg_heart_rate",
-                "max_heart_rate",
-            ]
-        ]
-        .describe()
-        .T.round(2)
-    )
+    logger.info("Apple: Typisierung & Einheiten abgeschlossen")
+
+    # Statistiken anzeigen
+    print("\nNumerische Variablen (Apple):")
+    print(df[num_cols].describe().T.round(2))
 
     return df
 
 
-# Anwendung direkt nach dem Filter:
+# Anwendung auf Apple-Daten
 apple_df_typed = clean_apple_typing(apple_df)
 ```
 
-#### 2.2.3 Data Cleaning
+#### 2.2.3 Pipeline-basierte Bereinigung
+
+Identische Pipeline wie Garmin für konsistente Datenqualität über alle Quellen hinweg.
 
 ```{python}
-#| ExecuteTime: {end_time: '2025-10-11T08:17:19.354727Z', start_time: '2025-10-11T08:17:19.266826Z'}
-# nutzt die gleichen Helper wie Garmin: _build_distance_bins, _build_hr_bins_per_source, _impute_grouped_calories
+#| ExecuteTime: {end_time: '2025-11-13T09:25:40.752516Z', start_time: '2025-11-13T09:25:40.598626Z'}
+# Apple Cleaning Pipeline aufbauen (identisch zu Garmin)
+apple_pipeline = DataCleaningPipeline("Apple", config)
 
-
-def clean_apple_data(df):
-    """
-    Entfernt Duplikate, behandelt Missing/Fehler und Ausreisser
-    für Running-Daten aus Apple Health. Erwartet harmonisiertes Schema.
-    """
-    df = df.copy()
-
-    # 0) Essenzielle Spalten: distance_km, duration_sec (date NICHT essentiell)
-    essential = ["distance_km", "duration_sec"]
-    for c in essential:
-        if c not in df.columns:
-            raise ValueError(f"Erwartete Spalte fehlt: {c}")
-
-    # 0.1 Date-Fallback: (seltener nötig als bei Garmin) – aus export_date + 12h
-    before_date_nan = df["date"].isna().sum()
-    mask_date_missing = df["date"].isna() & df["export_date"].notna()
-    df.loc[mask_date_missing, "date"] = df.loc[
-        mask_date_missing, "export_date"
-    ] + pd.Timedelta(hours=12)
-    after_date_nan = df["date"].isna().sum()
-    print(
-        f"Date-Imputation (Apple): NaN {before_date_nan}→{after_date_nan} (aus export_date gesetzt: {mask_date_missing.sum()})"
+apple_pipeline.add_step(
+    CleaningStep(
+        name="Date Imputation",
+        function=step_impute_dates,
+        description="Imputiert fehlende Datumsangaben aus export_date",
+        is_critical=False,
     )
-
-    # 1) Duplikate (quellenweise)
-    before = len(df)
-    df = df.drop_duplicates(subset=["source", "date", "distance_km", "duration_sec"])
-    print(f"Duplikate entfernt: {before - len(df)}")
-
-    # 2) Essentielle Missing droppen
-    before = len(df)
-    df = df.dropna(subset=essential)
-    print(f"Zeilen ohne essenzielle Werte entfernt: {before - len(df)}")
-
-    # 3) Plausibilitätsgrenzen (soft, wie bei Garmin)
-    before = len(df)
-    mask_plaus = df["distance_km"].between(0.05, 60, inclusive="both") & df[
-        "duration_sec"
-    ].between(60, 18000, inclusive="both")
-    df = df[mask_plaus].copy()
-    print(f"Unplausible Distanz/Dauer entfernt: {before - len(df)}")
-
-    # 4) Pace-Check (2.3–10.5 min/km, wie Garmin)
-    pace_min_per_km = (df["duration_sec"] / 60.0) / df["distance_km"]
-    before = len(df)
-    df = df[pace_min_per_km.between(2.3, 10.5, inclusive="both")].copy()
-    print(f"Pace-Ausreisser entfernt: {before - len(df)}")
-
-    # 5) Herzfrequenzen: Plausibilität & Imputation
-    before_nan_avg = df["avg_heart_rate"].isna().sum()
-    before_nan_max = df["max_heart_rate"].isna().sum()
-
-    df.loc[
-        (df["avg_heart_rate"] <= 0) | (df["avg_heart_rate"] > 300), "avg_heart_rate"
-    ] = np.nan
-    df.loc[
-        (df["max_heart_rate"] <= 0) | (df["max_heart_rate"] > 300), "max_heart_rate"
-    ] = np.nan
-
-    mask_inverted = (
-        df["max_heart_rate"].notna()
-        & df["avg_heart_rate"].notna()
-        & (df["max_heart_rate"] < df["avg_heart_rate"])
+).add_step(
+    CleaningStep(
+        name="Remove Duplicates",
+        function=step_remove_duplicates,
+        description="Entfernt Duplikate basierend auf Schlüsselfeldern",
+        is_critical=False,
     )
-    tol_mask = mask_inverted & ((df["avg_heart_rate"] - df["max_heart_rate"]) <= 3)
-    df.loc[tol_mask, "max_heart_rate"] = df.loc[tol_mask, "avg_heart_rate"]
-    hard_conflict = mask_inverted & ~tol_mask
-    df.loc[hard_conflict, ["avg_heart_rate", "max_heart_rate"]] = np.nan
-
-    # Median-Imputation je Quelle
-    for col in ["avg_heart_rate", "max_heart_rate"]:
-        med = df.groupby("source")[col].transform("median")
-        df[col] = df[col].fillna(med)
-
-    after_nan_avg = df["avg_heart_rate"].isna().sum()
-    after_nan_max = df["max_heart_rate"].isna().sum()
-    print(
-        f"HF-Bereinigung (Apple): avg_hr NaN {before_nan_avg}→{after_nan_avg}, "
-        f"max_hr NaN {before_nan_max}→{after_nan_max}, "
-        f"Konflikte (max<avg): {int(mask_inverted.sum())}, toleriert: {int(tol_mask.sum())}, hart: {int(hard_conflict.sum())}"
+).add_step(
+    CleaningStep(
+        name="Validate Essentials",
+        function=step_validate_essentials,
+        description="Entfernt Zeilen ohne distance/duration",
+        is_critical=True,
     )
-
-    # 6) Kalorien: fehlerhafte/fehlende Werte gruppenbasiert imputieren (Distanz×HF)
-    df["calories"] = pd.to_numeric(df["calories"], errors="coerce")
-    before_bad_cal = (
-        df["calories"].isna().sum() + (df["calories"] <= 0).fillna(False).sum()
+).add_step(
+    CleaningStep(
+        name="Plausibility Checks",
+        function=step_validate_plausibility,
+        description="Validiert Distanz, Dauer, Pace",
+        is_critical=False,
     )
-
-    df.loc[df["calories"] <= 0, "calories"] = np.nan
-    cal_before_impute_nan = df["calories"].isna().sum()
-    df = _impute_grouped_calories(df)  # gleiche Helper wie Garmin
-    cal_after_impute_nan = df["calories"].isna().sum()
-
-    cal_before_clip = df["calories"].copy()
-    df["calories"] = df["calories"].clip(lower=50, upper=3000)
-    wins_abs = _count_changed(cal_before_clip, df["calories"])
-
-    kcal_per_km = (df["calories"] / df["distance_km"]).clip(lower=25, upper=120)
-    cal_before_ratio_clip = df["calories"].copy()
-    df["calories"] = (kcal_per_km * df["distance_km"]).round(0)
-    wins_ratio = _count_changed(cal_before_ratio_clip, df["calories"])
-
-    print(
-        f"Kalorien (Apple): fehlerhaft/fehlend (vorher) {before_bad_cal}, "
-        f"Imputation NaN {cal_before_impute_nan}→{cal_after_impute_nan}, "
-        f"Winsorisiert (abs): {wins_abs}, Winsorisiert (kcal/km): {wins_ratio}"
+).add_step(
+    CleaningStep(
+        name="Heart Rate Cleaning",
+        function=step_clean_heart_rate,
+        description="Bereinigt und imputiert Herzfrequenzwerte",
+        is_critical=False,
     )
+).add_step(
+    CleaningStep(
+        name="Calories Imputation",
+        function=step_impute_calories,
+        description="Gruppenbasierte Imputation und Winsorising",
+        is_critical=False,
+    )
+).add_step(
+    CleaningStep(
+        name="Final HR Sweep",
+        function=step_final_hr_sweep,
+        description="Entfernt physiologisch unrealistische Herzfrequenzen",
+        is_critical=False,
+    )
+).add_step(
+    CleaningStep(
+        name="Finalize Types",
+        function=step_finalize_types,
+        description="Setzt finale Datentypen",
+        is_critical=False,
+    )
+)
 
-    # 7) Finaler HF-Sweep
-    before = len(df)
-    df = df[df["avg_heart_rate"].between(80, 210, inclusive="both")]
-    print(f"HF-Ausreisser entfernt: {before - len(df)}")
-
-    # 8) Aufräumen
-    df["activity_type"] = df["activity_type"].astype("category")
-    df["source"] = df["source"].astype("category")
-
-    print(f"✅ Bereinigung abgeschlossen – Apple-Workouts verbleibend: {len(df)}")
-    return df
-
-
-# Apple-Bereinigung ausführen
-apple_clean = clean_apple_data(apple_df_typed)
+# Pipeline ausführen
+apple_clean, apple_report = apple_pipeline.run(apple_df_typed)
 ```
 
-## LE4: Verknüpfen
+#### 2.2.4 Qualitätsbewertung & Report
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:40.938051Z', start_time: '2025-11-13T09:25:40.885941Z'}
+# Summary anzeigen
+apple_summary = apple_report.summary()
+
+# Detaillierter Schritte-Report
+print("\n📋 Detaillierter Bereinigungsbericht:")
+apple_steps_df = apple_report.to_dataframe()
+print(apple_steps_df.to_string(index=False))
+
+# Qualitätsmetriken berechnen
+print("\n📊 Datenqualitäts-Assessment:")
+apple_quality = DataQualityChecker.assess_quality(apple_clean, config)
+apple_quality_df = DataQualityChecker.quality_report(apple_quality)
+print(apple_quality_df.to_string(index=False))
+
+# Bereinigte Daten anzeigen
+print(f"\n✅ Apple bereinigte Daten: {len(apple_clean)} Zeilen")
+apple_clean.head()
+```
+
+### 2.3 Vergleich & Zusammenfassung
+
+Vergleich der Bereinigungsergebnisse zwischen Garmin und Apple Health.
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:41.183643Z', start_time: '2025-11-13T09:25:41.161146Z'}
+# Vergleichstabelle erstellen
+comparison_data = {
+    "Metrik": [
+        "Initial Rows",
+        "Final Rows",
+        "Removed Rows",
+        "Retention Rate (%)",
+        "Completeness (avg)",
+        "Validity (avg)",
+    ],
+    "Garmin": [
+        garmin_summary["initial_rows"],
+        garmin_summary["final_rows"],
+        garmin_summary["total_removed"],
+        f"{garmin_summary['retention_rate']*100:.1f}%",
+        f"{np.mean([v for v in garmin_quality['completeness'].values()])*100:.1f}%",
+        f"{np.mean([v for v in garmin_quality['validity'].values()])*100:.1f}%",
+    ],
+    "Apple": [
+        apple_summary["initial_rows"],
+        apple_summary["final_rows"],
+        apple_summary["total_removed"],
+        f"{apple_summary['retention_rate']*100:.1f}%",
+        f"{np.mean([v for v in apple_quality['completeness'].values()])*100:.1f}%",
+        f"{np.mean([v for v in apple_quality['validity'].values()])*100:.1f}%",
+    ],
+}
+
+comparison_df = pd.DataFrame(comparison_data)
+
+print("\n" + "=" * 60)
+print("VERGLEICH: GARMIN vs APPLE HEALTH")
+print("=" * 60)
+print(comparison_df.to_string(index=False))
+print("=" * 60)
+
+# Kombinierte Statistiken
+print(f"\n✅ Gesamtergebnis:")
+print(f"   Garmin: {len(garmin_clean)} bereinigte Läufe")
+print(f"   Apple:  {len(apple_clean)} bereinigte Läufe")
+print(f"   Total:  {len(garmin_clean) + len(apple_clean)} bereinigte Läufe")
+print(f"\n   Beide Datensätze verwenden identische:")
+print(f"   • Bereinigungspipeline (8 Schritte)")
+print(f"   • Validierungsregeln")
+print(f"   • Imputationsstrategien")
+print(f"   • Qualitätsmetriken")
+print(f"\n   → Daten sind jetzt vergleichbar und für Analyse bereit! ✨")
+```
+
+---
+
+#### 🎯 Kapitel 2 Zusammenfassung: Best Practices implementiert
+
+**Erreichte Verbesserungen:**
+
+ 1️⃣ **Zentrale Konfiguration** (`DataCleaningConfig`)
+- Alle Schwellenwerte an einem Ort
+- Leicht anpassbar für verschiedene Anforderungen
+- Dokumentierte Parameter
+
+ 2️⃣ **Strukturiertes Logging & Reporting**
+- `CleaningReport`: Detaillierte Schritt-Dokumentation
+- Retention Rates für jeden Schritt
+- Exportierbare Berichte für Audit Trail
+
+ 3️⃣ **Modularisierte Validatoren** (`DataValidator`)
+- Wiederverwendbare Validierungsfunktionen
+- Konsistente Prüfungen über alle Quellen
+- Testbare Einzelkomponenten
+
+ 4️⃣ **Pipeline-Pattern** (`DataCleaningPipeline`)
+- Robuste Fehlerbehandlung
+- Kritische vs. nicht-kritische Schritte
+- Identische Pipeline für Garmin + Apple
+
+ 5️⃣ **Transparente Imputation**
+- Tracking welche Werte imputiert wurden
+- Dokumentation der Imputation-Levels
+- Gruppenbasierte Median-Strategie
+
+ 6️⃣ **Automatische Qualitätsmetriken** (`DataQualityChecker`)
+- Completeness (Vollständigkeit)
+- Validity (Plausibilität)
+- Consistency (Konsistenz)
+- Uniqueness (Eindeutigkeit)
+
+ 7️⃣ **8 Modularisierte Bereinigungsschritte**
+1. Date Imputation
+2. Remove Duplicates
+3. Validate Essentials
+4. Plausibility Checks
+5. Heart Rate Cleaning
+6. Calories Imputation
+7. Final HR Sweep
+8. Finalize Types
+
+ Vorteile:
+
+✅ **Wartbarkeit**: Zentrale Konfiguration, modularer Code  
+✅ **Nachvollziehbarkeit**: Strukturiertes Logging, detaillierte Reports  
+✅ **Wiederverwendbarkeit**: Gleiche Pipeline für Garmin + Apple  
+✅ **Fehlerbehandlung**: Try-Catch, kritische vs. nicht-kritische Steps  
+✅ **Qualitätskontrolle**: Automatische Metriken nach Best Practices  
+✅ **Transparenz**: Imputation-Tracking, vollständige Dokumentation  
+✅ **Testbarkeit**: Einzelne Funktionen können unit-getestet werden  
+
+---
+
+ LE4: Verknüpfen
 
 
 
 
-## LE5: Datenpipelines
+ LE5: Datenpipelines
 
 
 
 
-## LE6: Reproduzierbarkeit
+ LE6: Reproduzierbarkeit
+
+
+## Verknüpfen
+
+
+**2.0 Zusammenführung der Datenquellen**
+
+Strategie:
+
+Nach Abschluss der Quell-spezifischen Pipelines (Garmin & Apple) erfolgt die Zusammenführung beider harmonisierter Datensätze zu einem einheitlichen Frame für Analyse und Visualisierung.
+
+Wichtige Lernpunkte:
+
+- Da jeder Lauf separat gemessen wird, machen **joins** keinen Sinn, da in unserem Szenario eine Person nicht parallel Garmin und Apple Messgeräte verwendet (keine 1:1-Beziehung).
+- Stattdessen wird eine **Konkatenation** (Vertikales Zusammenfügen) durchgeführt.
+- Der Import und die Zusammenführung (Concatenation) gehört nicht mehr in die Pipeline,
+sondern ist ein vor- resp. nachgelagerter Schritt.
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:25:41.906969Z', start_time: '2025-11-13T09:25:41.871915Z'}
+combined_no_dedupe = (pd.concat([garmin_clean, apple_clean], ignore_index=True)
+                      .sort_values("date", kind="stable"))
+
+print(len(combined_no_dedupe))
+print(combined_no_dedupe)# sollte Garmin + Apple ergeben
+```
+
+## Exportieren
+
+Outputlayer
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:26:11.715038Z', start_time: '2025-11-13T09:26:11.671040Z'}
+# --------------------------------------------------------------
+# 5. OUTPUT: Persistierte Version des kombinierten DataFrames
+# --------------------------------------------------------------
+
+from pathlib import Path
+
+# Zielordner erstellen, falls nicht vorhanden
+output_dir = Path("data/processed")
+output_dir.mkdir(parents=True, exist_ok=True) # macht (ev. inkl. Elternordnern) Output-Ordner ohne Fehlermeldung
+
+
+
+
+
+
+# Dateipfade definieren
+parquet_path = output_dir / "combined_runs.parquet"
+csv_path     = output_dir / "combined_runs.csv"
+
+# 1) Parquet speichern (beste Wahl für Analyse und Dashboard)
+combined_no_dedupe.to_parquet(parquet_path, index=False, engine="pyarrow")
+
+# OPTIONAL: 2) CSV speichern (für Kontrolle oder externes Teilen)
+combined_no_dedupe.to_csv(csv_path, index=False)
+
+print("Output written:")
+print(f"- {parquet_path}")
+print(f"- {csv_path}")
+```
+
+
+```{python}
+#| ExecuteTime: {end_time: '2025-11-13T09:27:51.174921Z', start_time: '2025-11-13T09:27:51.123822Z'}
+# Datei laden
+df = pd.read_parquet(parquet_path)
+
+# anzeigen
+print(df)
+```
 
