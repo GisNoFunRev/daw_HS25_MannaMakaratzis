@@ -97,3 +97,10 @@ ESSENTIAL_COLUMNS: list[str] = ["distance_km", "duration_sec"]
 # Fachlicher Schlüssel eines Laufs; dient der Duplikaterkennung und der
 # Uniqueness-Metrik.
 DUPLICATE_KEY_COLUMNS: list[str] = ["source", "date", "distance_km", "duration_sec"]
+
+# Herkunftsspalten: Sie dokumentieren den Bereinigungsvorgang, nicht den Lauf.
+# Ein leeres imputation_level heisst "musste nicht imputiert werden" — also der
+# Idealfall — und darf deshalb nicht als fehlender Wert in die Completeness
+# eingehen. calories_imputed ist umgekehrt immer gefüllt und liefert damit
+# konstant 1.0, also ebenfalls keine Aussage über die Datenqualität.
+PROVENANCE_COLUMNS: list[str] = ["calories_imputed", "imputation_level"]
