@@ -16,12 +16,15 @@ Wichtige Einschränkung
 Completeness misst ausschliesslich, ob ein Wert vorhanden ist — nicht, ob er
 richtig ist. Ein Feld, das zu 100 % gefüllt ist, kann durchgehend falsche
 Werte enthalten und wird hier trotzdem mit ✅ ausgewiesen.
+
+Umgekehrt bleiben die Herkunftsspalten aus PROVENANCE_COLUMNS von der Messung
+ausgenommen. Dort ist ein leerer Wert eine Aussage und kein Mangel.
 """
 
 import numpy as np
 import pandas as pd
 
-from ..config import DUPLICATE_KEY_COLUMNS, DataCleaningConfig
+from ..config import DUPLICATE_KEY_COLUMNS, PROVENANCE_COLUMNS, DataCleaningConfig
 from ..cleaning.validators import DataValidator
 
 # Schwellen für die Statusanzeige im Qualitätsbericht.
@@ -56,7 +59,11 @@ class DataQualityChecker:
         }
 
         # --- Completeness: Anteil nicht-fehlender Werte je Spalte -----------
+        # Herkunftsspalten werden übersprungen, da ein fehlender Wert dort
+        # kein Qualitätsmangel ist (siehe Modul-Docstring).
         for col in df.columns:
+            if col in PROVENANCE_COLUMNS:
+                continue
             metrics["completeness"][col] = 1 - (df[col].isna().sum() / len(df))
 
         # --- Validity: Anteil plausibler Werte ------------------------------
