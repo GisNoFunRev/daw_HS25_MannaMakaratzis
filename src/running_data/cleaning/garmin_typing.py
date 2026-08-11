@@ -15,6 +15,7 @@ import pandas as pd
 
 from ..config import (
     CATEGORICAL_COLUMNS,
+    CORE_COLUMNS,
     NUMERIC_COLUMNS,
     RAW_CORE_COLUMNS,
 )
@@ -125,14 +126,14 @@ def clean_garmin_typing(df: pd.DataFrame) -> pd.DataFrame:
             RAW_CORE_COLUMNS.
 
     Returns:
-        Kopie mit der zusätzlichen Spalte duration_sec, numerisch
-        typisierten Messwerten und kategorialen Schlüsselspalten.
+        Datensatz im gemeinsamen CORE_COLUMNS-Schema mit harmonisierter
+        duration_sec sowie numerisch typisierten Messwerten und
+        kategorialen Schlüsselspalten.
 
     Note:
-        Die Rohspalte duration bleibt erhalten. Beim Apple-Pendant wird
-        sie in duration_sec umbenannt und verschwindet dadurch — daher
-        die leeren duration-Werte bei Apple-Zeilen im kombinierten
-        Datensatz (TODO 11). Verhalten hier unverändert übernommen.
+        Die Garmin-Rohspalte duration wird nach der Umrechnung entfernt.
+        Die Laufdauer wird quellenübergreifend ausschliesslich über
+        duration_sec im gemeinsamen CORE_COLUMNS-Schema weitergeführt.
     """
     df = df.copy()
 
@@ -160,4 +161,4 @@ def clean_garmin_typing(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].astype("category")
 
     logger.info("Garmin: Typisierung & Einheiten abgeschlossen")
-    return df
+    return df[CORE_COLUMNS].copy()
