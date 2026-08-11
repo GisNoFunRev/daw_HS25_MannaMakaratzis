@@ -15,10 +15,7 @@ Wichtige Einschränkung
 ----------------------
 Completeness misst ausschliesslich, ob ein Wert vorhanden ist — nicht, ob er
 richtig ist. Ein Feld, das zu 100 % gefüllt ist, kann durchgehend falsche
-Werte enthalten und wird hier trotzdem mit ✅ ausgewiesen. Genau dieser Fall
-liegt beim Garmin-Datumsfeld vor (TODO 1): Die Werte sind vollständig, aber
-Tag und Monat sind vertauscht. Die Metrik ersetzt daher keine fachliche
-Plausibilisierung.
+Werte enthalten und wird hier trotzdem mit ✅ ausgewiesen.
 """
 
 import numpy as np
@@ -136,11 +133,6 @@ def build_comparison_table(
     summaries: dict[str, dict], qualities: dict[str, dict]
 ) -> pd.DataFrame:
     """Stellt die Bereinigungsergebnisse mehrerer Quellen gegenüber.
-
-    Ersetzt den zuvor fest auf Garmin und Apple verdrahteten Vergleichsblock
-    im Notebook (qmd:1556-1589). Die Quellen werden jetzt aus den übergebenen
-    Dictionaries abgeleitet, sodass eine dritte Quelle keine Codeänderung
-    erfordert.
 
     Args:
         summaries: Je Quellenname das Ergebnis von

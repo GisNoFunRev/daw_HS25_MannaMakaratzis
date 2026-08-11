@@ -1,13 +1,7 @@
 """Zentrale Konfiguration der Datenbereinigung.
 
 Hier stehen sämtliche Schwellenwerte und Schema-Definitionen an einer Stelle.
-Fachliche Anpassungen — etwa eine andere Plausibilitätsgrenze für die Pace —
-erfolgen ausschliesslich hier und nicht verstreut im Verarbeitungscode.
-
-Die Schema-Konstanten am Ende des Moduls waren zuvor mehrfach als lokale
-Listen im Notebook definiert. Sie wurden zusammengeführt, weil abweichende
-Kopien derselben Spaltenliste bereits zu einer echten Inkonsistenz geführt
-haben (siehe Hinweis bei RAW_CORE_COLUMNS).
+Fachliche Anpassungen erfolgen ausschliesslich hier und nicht verstreut im Verarbeitungscode.
 """
 
 
@@ -15,9 +9,9 @@ class DataCleaningConfig:
     """Schwellenwerte für Validierung, Imputation und Winsorising.
 
     Die Werte sind als Klassenattribute abgelegt und werden über eine Instanz
-    (config = DataCleaningConfig()) an die Bereinigungsschritte übergeben.
+    (``config = DataCleaningConfig()``) an die Bereinigungsschritte übergeben.
     Jeder Schritt erhält die Konfiguration explizit als Parameter, statt auf
-    eine globale Variable zuzugreifen — das macht die Schritte einzeln
+    eine globale Variable zuzugreifen. Das macht die Schritte einzeln
     testbar und ihre Abhängigkeiten sichtbar.
     """
 
@@ -59,13 +53,6 @@ class DataCleaningConfig:
 
 # Kernvariablen vor der Typisierung, wie sie direkt aus dem Import kommen.
 # Die Spalte "duration" ist hier noch Rohtext (Garmin: "hh:mm:ss", Apple: Minuten).
-#
-# Hinweis: Diese Liste und CORE_COLUMNS unterschieden sich im Notebook nur durch
-# "duration" gegenüber "duration_sec", wurden aber als zwei unabhängige Listen
-# gepflegt. Dadurch behielt der Garmin-Zweig die Rohspalte "duration" bis ins
-# Endergebnis, während sie bei Apple wegfiel — die Ursache der leeren
-# duration-Werte bei Apple-Zeilen (TODO 11). Das Verhalten bleibt unverändert,
-# die beiden Konstanten machen die Abweichung nur sichtbar.
 RAW_CORE_COLUMNS: list[str] = [
     "date",
     "activity_type",

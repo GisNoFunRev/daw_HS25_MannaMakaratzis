@@ -4,8 +4,8 @@ Der kombinierte Datensatz wird in zwei Formaten abgelegt, weil sie
 unterschiedliche Zwecke erfüllen:
 
 Parquet ist das massgebliche Format für die Weiterverarbeitung. Es
-speichert die Datentypen mit — date bleibt ein Zeitstempel,
-activity_type bleibt kategorial — und ist deutlich kompakter.
+speichert die Datentypen mit (date bleibt ein Zeitstempel,
+activity_type bleibt kategorial) und ist deutlich kompakter.
 
 CSV ist die Kontrollkopie: in jedem Editor lesbar und ohne
 Spezialwerkzeug prüfbar. Datentypen gehen dabei verloren, weshalb CSV nicht

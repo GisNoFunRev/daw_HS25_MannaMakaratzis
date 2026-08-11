@@ -32,7 +32,6 @@ GARMIN_GLOB: str = str(DATA_DIR / "garmin" / "*" / "Activities.csv")
 APPLE_GLOB: str = str(DATA_DIR / "apple" / "*" / "Export.xml")
 
 # GPS-Spuren der Apple-Workouts, eine GPX-Datei je Lauf.
-# Noch ungenutzt — vorgesehen für den GPX-Import (TODO 9).
 APPLE_ROUTES_GLOB: str = str(DATA_DIR / "apple" / "*" / "workout-routes" / "*.gpx")
 
 # --- Ausgabedaten -----------------------------------------------------------

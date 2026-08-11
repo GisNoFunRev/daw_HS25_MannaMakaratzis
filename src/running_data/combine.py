@@ -2,8 +2,8 @@
 
 Warum konkateniert und nicht gejoint wird
 -----------------------------------------
-Ein Join setzt eine Beziehung zwischen den Datensätzen voraus — dieselbe
-Entität, beschrieben durch unterschiedliche Attribute. Diese Beziehung besteht
+Ein Join setzt eine Beziehung zwischen den Datensätzen voraus. Dieselbe
+Entität wird beschrieben durch unterschiedliche Attribute. Diese Beziehung besteht
 hier nicht: Eine Person trägt beim Laufen entweder die Garmin- oder die
 Apple-Uhr, nie beide gleichzeitig. Jeder Lauf existiert also in genau einer
 Quelle, und es gibt keine gemeinsamen Schlüssel, über die sich Zeilen paaren
@@ -12,14 +12,6 @@ liessen.
 Fachlich richtig ist deshalb die Konkatenation: Beide Quellen liefern
 gleichartige Beobachtungen, die untereinander gehängt werden. Ein Join würde
 hier ein Kreuzprodukt oder überwiegend leere Zeilen erzeugen.
-
-Ein echter Join wird an anderer Stelle möglich: Zwischen den GPX-Routenpunkten
-und den Workout-Zusammenfassungen besteht eine 1:n-Beziehung über den
-Zeitstempel (TODO 8/9).
-
-Der Import und diese Zusammenführung sind der Bereinigungspipeline bewusst
-vor- beziehungsweise nachgelagert: Die Pipeline arbeitet je Quelle, weil sich
-die Bereinigungsentscheidungen auf eine einzelne Quelle beziehen.
 """
 
 import pandas as pd
@@ -29,9 +21,7 @@ from .logging_setup import get_logger
 logger = get_logger(__name__)
 
 
-def concat_sources(
-    frames: list[pd.DataFrame], sort_by: str = "date"
-) -> pd.DataFrame:
+def concat_sources(frames: list[pd.DataFrame], sort_by: str = "date") -> pd.DataFrame:
     """Hängt die bereinigten Datensätze mehrerer Quellen untereinander.
 
     Args:
@@ -50,9 +40,7 @@ def concat_sources(
         eigenständige Beobachtungen; Duplikate innerhalb einer Quelle hat die
         Pipeline bereits entfernt.
     """
-    combined = pd.concat(frames, ignore_index=True).sort_values(
-        sort_by, kind="stable"
-    )
+    combined = pd.concat(frames, ignore_index=True).sort_values(sort_by, kind="stable")
 
     logger.info(
         "Zusammenführung: %s → %d Zeilen kombiniert",
