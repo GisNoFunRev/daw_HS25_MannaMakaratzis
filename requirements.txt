@@ -1,3 +1,7 @@
 pandas==2.3.2
 numpy==2.3.3
 lxml==6.0.2
+# Parquet-Engine fuer den Export (to_parquet/read_parquet).
+# War bisher nur lokal installiert und fehlte hier - ein frisches
+# "pip install -r requirements.txt" brach dadurch beim Export ab.
+pyarrow==22.0.0
