@@ -6,10 +6,11 @@ diese Module nur noch auf und stellt die Ergebnisse dar.
 
 Verarbeitungskette
 ------------------
-    ingest        →  cleaning        →  pipeline       →  combine  →  export
-    Rohdaten je      Typisierung je     8 Schritte,       beide       Parquet
-    Quelle lesen     Quelle, dann       je Quelle         Quellen     und CSV
-                     harmonisiert       identisch         vereint
+
+    ingest        →  cleaning        →  pipeline       →  combine       →  features       →  export
+    Rohdaten je      Typisierung je     8 Schritte,       beide            abgeleitete       Parquet
+    Quelle lesen     Quelle, dann       je Quelle         Quellen          Variablen         und CSV
+                     harmonisiert       identisch         vereint          ergänzen
 
 Aufbau des Pakets
 -----------------
@@ -30,12 +31,12 @@ combine
 export
     Persistierung des Ergebnisses.
 features
-    Abgeleitete Variablen (noch nicht implementiert).
+    Abgeleitete Variablen für die Analyse der Laufdaten.
 
 Beispiel
 --------
     from running_data import (
-        DataCleaningConfig, build_cleaning_pipeline, concat_sources,
+        DataCleaningConfig, add_features, build_cleaning_pipeline, concat_sources,
         configure_logging, import_garmin_activities, write_outputs,
     )
     from running_data.cleaning import garmin_typing
@@ -48,8 +49,9 @@ Beispiel
             garmin_typing.filter_running(import_garmin_activities())
         )
     )
-    cleaned, report = build_cleaning_pipeline("Garmin", config).run(typed)
-    write_outputs(concat_sources([cleaned]))
+    combined = concat_sources([cleaned])
+    featured = add_features(combined)
+    write_outputs(featured)
 """
 
 from .combine import concat_sources
@@ -66,6 +68,7 @@ from .ingest.garmin import import_garmin_activities
 from .logging_setup import configure_logging, get_logger
 from .pipeline.factory import build_cleaning_pipeline
 from .pipeline.quality import DataQualityChecker, build_comparison_table
+from .features import add_features
 
 __version__ = "0.1.0"
 
@@ -86,8 +89,9 @@ __all__ = [
     # Qualität
     "DataQualityChecker",
     "build_comparison_table",
-    # Zusammenführen und Export
+    # Zusammenführen Features und Export
     "concat_sources",
+    "add_features",
     "write_outputs",
     "read_processed",
     "__version__",
