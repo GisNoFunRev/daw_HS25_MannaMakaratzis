@@ -1,24 +1,44 @@
 # Tests
 
-Dieser Ordner ist das Gerüst für die automatisierten Tests (TODO 5) und
-aktuell noch leer.
+Automatisierte Tests der Verarbeitungspipeline (TODO 5).
 
-Vorgesehen sind mindestens:
-
-- **Schema-Check** nach dem Cleaning: Spalten und Datentypen des kombinierten
-  Datensatzes entsprechen dem erwarteten Schema.
-- **Validator-Tests** für `running_data.cleaning.validators`: je Regel ein
-  Fall knapp innerhalb und knapp ausserhalb der Grenze.
-- **Regressionstest für den Garmin-Datums-Bug** (TODO 1): ein bekanntes
-  Garmin-Datum im Format `TT.MM.JJJJ HH:MM` muss auf den korrekten Tag und
-  Monat geparst werden.
-
-Bewusst ohne `__init__.py`: Das Paket liegt im src-Layout und wird über
-`pip install -e .` installiert, die Tests importieren es also wie ein
-beliebiges Drittpaket.
-
-Ausführen (nach `pip install -e .` und `pip install pytest`):
+## Ausführen
 
 ```bash
+pip install -r requirements-dev.txt
 pytest
 ```
+
+`pytest` allein genügt: Die Konfiguration in `pyproject.toml` legt `src/` auf
+den Importpfad, ein vorheriges `pip install -e .` ist also nicht nötig.
+
+## Aufbau
+
+| Datei | Prüft |
+|---|---|
+| `test_validators.py` | Die fünf Plausibilitätsregeln, jeweils an den Grenzwerten |
+| `test_garmin_typing.py` | Dauer-Umrechnung und der Datums-Regressionstest (TODO 1) |
+| `test_schema.py` | Spalten und Datentypen nach Bereinigung und nach `run_pipeline` |
+| `test_imputation.py` | Die vierstufige Fallback-Kette der Kalorien-Imputation |
+| `test_pipeline_core.py` | Fehlerbehandlung bei kritischen und unkritischen Schritten |
+| `test_quality.py` | Qualitätsmetriken, insbesondere die Herkunftsspalten |
+| `test_export.py` | Schreiben und Wiedereinlesen ohne Verlust |
+| `test_run_pipeline.py` | Die Gesamtpipeline von Rohdatei bis Ausgabe |
+
+## Testdaten
+
+**Kein Test greift auf `data/` zu.** Die echten Rohdaten liegen ausserhalb der
+Versionsverwaltung; ein Test, der sie voraussetzt, schlägt bei jedem fehl, der
+das Repository frisch auscheckt. Stattdessen:
+
+- **`fixtures/`** enthält winzige, erfundene Exportdateien im echten Format —
+  eine Garmin-CSV in Latin-1 mit Semikolon-Trennung und europäischem
+  Datumsformat, ein gekürztes Apple-XML mit verschachtelten
+  `WorkoutStatistics`. Der Ordneraufbau spiegelt `data/`, weil das
+  Exportdatum aus dem Ordnernamen gelesen wird.
+- **`make_runs`** (in `conftest.py`) baut synthetische Läufe im gemeinsamen
+  Schema. Damit lässt sich für jeden Test exakt der Grenzfall herstellen, um
+  den es geht.
+
+Bewusst ohne `__init__.py`: Das Paket liegt im src-Layout, die Tests
+importieren es wie ein beliebiges Drittpaket.

@@ -23,6 +23,13 @@ dependencies = [
     "pyarrow>=22.0",
 ]
 
+# Entwicklungswerkzeuge. Spiegelt requirements-dev.txt, analog zum Verhältnis
+# von dependencies und requirements.txt: hier Untergrenzen, dort exakte Pins.
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0",
+]
+
 [tool.setuptools.packages.find]
 # Das Paket liegt unter src/ (src-Layout). Dadurch kann der Code nur über eine
 # echte Installation importiert werden und nie versehentlich über das
@@ -32,3 +39,11 @@ where = ["src"]
 [tool.black]
 line-length = 88
 target-version = ["py311"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Damit "pytest" auch ohne vorheriges "pip install -e ." funktioniert: Das
+# src-Verzeichnis kommt auf den Importpfad. Bei installiertem Paket ist die
+# Angabe wirkungslos, weil der Import ohnehin gelingt.
+pythonpath = ["src"]
+addopts = "--strict-markers -q"
