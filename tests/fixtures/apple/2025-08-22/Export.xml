@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Gekuerzter Apple-Health-Export fuer die Tests.
+
+  Der echte Export ist mehrere hundert Megabyte gross und enthaelt
+  personenbezogene Gesundheitsdaten. Diese Fixture bildet nur die Struktur ab,
+  auf die der Import zugreift, mit erfundenen Werten:
+
+    * Die Messwerte stehen in untergeordneten <WorkoutStatistics>-Elementen,
+      nicht als Attribute am <Workout>.
+    * Die Dauer ist in Minuten angegeben (durationUnit="min") und muss von
+      der Einheiten-Heuristik erkannt werden.
+    * Die Zeitstempel tragen einen Zeitzonen-Offset, den die Typisierung
+      entfernt.
+    * Das Walking-Workout muss vom Laufsport-Filter verworfen werden.
+-->
+<HealthData locale="de_CH">
+ <Workout workoutActivityType="HKWorkoutActivityTypeRunning" duration="35.5" durationUnit="min" sourceName="Apple Watch" sourceVersion="10.4" creationDate="2025-08-20 19:05:00 +0200" startDate="2025-08-20 18:29:00 +0200" endDate="2025-08-20 19:04:30 +0200">
+  <MetadataEntry key="HKTimeZone" value="Europe/Zurich"/>
+  <WorkoutStatistics type="HKQuantityTypeIdentifierDistanceWalkingRunning" startDate="2025-08-20 18:29:00 +0200" endDate="2025-08-20 19:04:30 +0200" sum="5.42" unit="km"/>
+  <WorkoutStatistics type="HKQuantityTypeIdentifierActiveEnergyBurned" startDate="2025-08-20 18:29:00 +0200" endDate="2025-08-20 19:04:30 +0200" sum="410.5" unit="kcal"/>
+  <WorkoutStatistics type="HKQuantityTypeIdentifierHeartRate" startDate="2025-08-20 18:29:00 +0200" endDate="2025-08-20 19:04:30 +0200" average="156.2" maximum="178.0" minimum="98.0" unit="count/min"/>
+ </Workout>
+ <Workout workoutActivityType="HKWorkoutActivityTypeRunning" duration="48.25" durationUnit="min" sourceName="Apple Watch" sourceVersion="10.4" creationDate="2025-08-21 08:10:00 +0200" startDate="2025-08-21 07:20:15 +0200" endDate="2025-08-21 08:08:30 +0200">
+  <MetadataEntry key="HKTimeZone" value="Europe/Zurich"/>
+  <WorkoutStatistics type="HKQuantityTypeIdentifierDistanceWalkingRunning" startDate="2025-08-21 07:20:15 +0200" endDate="2025-08-21 08:08:30 +0200" sum="8.13" unit="km"/>
+  <WorkoutStatistics type="HKQuantityTypeIdentifierActiveEnergyBurned" startDate="2025-08-21 07:20:15 +0200" endDate="2025-08-21 08:08:30 +0200" sum="620.0" unit="kcal"/>
+  <WorkoutStatistics type="HKQuantityTypeIdentifierHeartRate" startDate="2025-08-21 07:20:15 +0200" endDate="2025-08-21 08:08:30 +0200" average="149.4" maximum="171.0" minimum="94.0" unit="count/min"/>
+ </Workout>
+ <Workout workoutActivityType="HKWorkoutActivityTypeWalking" duration="22.0" durationUnit="min" sourceName="Apple Watch" sourceVersion="10.4" creationDate="2025-08-21 13:00:00 +0200" startDate="2025-08-21 12:37:00 +0200" endDate="2025-08-21 12:59:00 +0200">
+  <MetadataEntry key="HKTimeZone" value="Europe/Zurich"/>
+  <WorkoutStatistics type="HKQuantityTypeIdentifierDistanceWalkingRunning" startDate="2025-08-21 12:37:00 +0200" endDate="2025-08-21 12:59:00 +0200" sum="1.85" unit="km"/>
+  <WorkoutStatistics type="HKQuantityTypeIdentifierActiveEnergyBurned" startDate="2025-08-21 12:37:00 +0200" endDate="2025-08-21 12:59:00 +0200" sum="95.0" unit="kcal"/>
+ </Workout>
+</HealthData>

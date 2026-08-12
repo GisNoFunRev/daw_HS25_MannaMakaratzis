@@ -33,6 +33,7 @@ warnings.filterwarnings("ignore")
 from running_data import (
     DataCleaningConfig,
     DataQualityChecker,
+    add_features,
     build_cleaning_pipeline,
     build_comparison_table,
     concat_sources,
@@ -40,6 +41,7 @@ from running_data import (
     import_apple_workouts,
     import_garmin_activities,
     read_processed,
+    run_pipeline,
     write_outputs,
 )
 from running_data.config import NUMERIC_COLUMNS
@@ -670,6 +672,21 @@ print(len(combined_no_dedupe))  # sollte Garmin + Apple ergeben
 combined_no_dedupe
 ```
 
+## Abgeleitete Variablen
+
+Aus den bereinigten Messwerten lassen sich Kennzahlen ableiten, die für die
+Interpretation eines Laufs aussagekräftiger sind als die Rohwerte. `add_features`
+ergänzt `pace_min_per_km` und `duration_min` als sichtbare Spalten im
+Endergebnis — die Pace wurde zuvor zwar in den Validatoren berechnet, dort aber
+nur zur Plausibilitätsprüfung ausgewertet und anschliessend verworfen.
+
+```{python}
+combined_featured = add_features(combined_no_dedupe)
+
+print(f"{combined_no_dedupe.shape[1]} → {combined_featured.shape[1]} Spalten")
+combined_featured[["date", "distance_km", "duration_min", "pace_min_per_km"]].head()
+```
+
 ## Exportieren
 
 Outputlayer
@@ -678,7 +695,7 @@ Outputlayer
 # Output-Layer: persistierte Version des kombinierten DataFrames.
 # write_outputs legt den Zielordner an und schreibt Parquet (massgeblich,
 # mit Datentypen) sowie CSV (Kontrollkopie).
-output_paths = write_outputs(combined_no_dedupe)
+output_paths = write_outputs(combined_featured)
 
 print("Output written:")
 for kind, path in output_paths.items():
@@ -690,5 +707,66 @@ for kind, path in output_paths.items():
 # Kontrolle: zurueckgelesen muss dem geschriebenen Datensatz entsprechen.
 df = read_processed()
 print(df)
+```
+
+## Die gesamte Verarbeitung als eine Funktion
+
+Alle Zellen bis hierher zeigen die Verarbeitung Schritt für Schritt: Jeder
+Zwischenstand ist sichtbar, jede Entscheidung nachvollziehbar. Für die
+*Ausführung* ist das jedoch unpraktisch — wer das Projekt nur laufen lassen
+will, müsste sämtliche Zellen in der richtigen Reihenfolge durchklicken.
+
+`run_pipeline()` fasst genau dieselbe Kette in einem Aufruf zusammen:
+
+```
+je Quelle:  Import → Typisierung → Bereinigung (8 Schritte)
+danach:     Zusammenführung → abgeleitete Variablen → Export
+```
+
+Dass die Reihenfolge nur in Zellpositionen existierte, hatte eine konkrete
+Folge: `add_features` war implementiert und exportiert, wurde aber von keiner
+Zelle aufgerufen — die abgeleiteten Variablen fehlten im Ergebnis, ohne dass
+etwas fehlschlug. In `run_pipeline` steht die Reihenfolge einmal an einer
+Stelle.
+
+```{python}
+# Dieselbe Verarbeitung wie oben, in einer Zeile.
+result = run_pipeline()
+
+print(f"Ergebnis: {len(result.data)} Zeilen, {result.data.shape[1]} Spalten")
+for kind, path in result.outputs.items():
+    print(f"  {kind:7s} {path}")
+```
+
+Das Ergebnis ist mehr als der Datensatz: `run_pipeline` gibt auch die
+Bereinigungsberichte und die Qualitätsmetriken je Quelle zurück. Die
+Vergleichstabelle aus Kapitel 2.3 lässt sich damit direkt erzeugen.
+
+```{python}
+print(
+    build_comparison_table(result.summaries, result.qualities).to_string(index=False)
+)
+```
+
+```{python}
+# Nachweis, dass beide Wege dasselbe liefern.
+pd.testing.assert_frame_equal(result.data, combined_featured)
+print("run_pipeline() liefert exakt das Ergebnis der Zellen oben.")
+```
+
+### Ausführung ohne Notebook
+
+Für die Abgabe und die Weitergabe an Dritte gibt es denselben Ablauf als
+Kommandozeilenbefehl. Er braucht weder Jupyter noch Python-Kenntnisse:
+
+```bash
+python -m running_data
+```
+
+Mit abweichenden Pfaden oder ohne zu schreiben:
+
+```bash
+python -m running_data --output ergebnisse/
+python -m running_data --dry-run
 ```
 

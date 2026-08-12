@@ -1,0 +1,12 @@
+# Entwicklungsabhaengigkeiten.
+#
+# Bewusst getrennt von requirements.txt gehalten: Dort steht ausschliesslich,
+# was zum Ausfuehren der Pipeline noetig ist. Wer das Projekt nur benutzen
+# will, soll pytest nicht mitinstallieren muessen.
+#
+# Installation (enthaelt die Laufzeit-Abhaengigkeiten mit):
+#   pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+pytest==9.1.1
