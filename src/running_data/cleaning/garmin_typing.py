@@ -137,6 +137,14 @@ def clean_garmin_typing(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     df["export_date"] = pd.to_datetime(df["export_date"], errors="coerce")
+
+    # Garmin dates use the European DD.MM.YYYY format.
+    # Parse explicitly to prevent pandas from swapping day and month or producing NaT.
+    df["date"] = pd.to_datetime(
+        df["date"],
+        format="%d.%m.%Y %H:%M",
+        errors="coerce",
+    )
     df["duration_sec"] = df["duration"].apply(convert_duration_to_seconds)
 
     # Heuristik: Liegt der Maximalwert oberhalb jeder plausiblen Laufdistanz,

@@ -47,18 +47,11 @@ def step_impute_dates(
     anzunehmen). Das vermeidet, dass Läufe allein wegen eines fehlenden
     Zeitstempels verloren gehen.
 
-    Achtung:
-       Bekannter Fehler (TODO 1), hier bewusst unverändert übernommen.
-       pd.to_datetime wird ohne Formatangabe aufgerufen. Garmin liefert
-       Datumswerte im europäischen Format TT.MM.JJJJ HH:MM, das pandas
-       ohne dayfirst=True als MM.TT.JJJJ liest. Folge: Bei Tagen
-       ≤ 12 werden Tag und Monat vertauscht ("11.07.2025" wird zum
-       7. November), bei Tagen > 12 entsteht NaT — und diese Zeilen
-       erhalten anschliessend hier alle dasselbe Exportdatum.
-
-       Die Korrektur gehört in clean_garmin_typing (explizites
-       format="%d.%m.%Y %H:%M") und ist nicht Teil dieses
-       Refactorings, das das Verhalten unverändert lassen soll.
+        Note:
+        Quellenspezifische Datumsformate werden bereits während der
+        Typisierung normalisiert. Dieser Schritt arbeitet deshalb nur noch
+        mit harmonisierten Zeitstempeln und imputiert tatsächlich fehlende
+        Werte aus export_date.
     """
     df = df.copy()
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
