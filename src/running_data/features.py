@@ -1,29 +1,52 @@
-"""Abgeleitete Variablen (noch nicht implementiert).
+"""Abgeleitete Variablen für die Analyse der Laufdaten.
 
-Platzhalter für TODO 10 und Teile von TODO 7.
+Feature-Auswahl
+---------------
+Es werden nur Variablen ergänzt, die für die Interpretation von Laufdaten
+einen direkten fachlichen Nutzen haben.
 
-Ausgangslage
-------------
-Mehrere Grössen werden bereits berechnet, aber nur intern verwendet und
-anschliessend verworfen:
-
-* Die Pace entsteht in
-  validate_pace, wird
-  dort nur zur Plausibilitätsprüfung ausgewertet und nicht gespeichert.
-* Die Distanzklassen entstehen in
-  _build_distance_bins und werden am
-  Ende der Imputation wieder entfernt.
-
-Vorgesehene Spalten im Endergebnis
-----------------------------------
 pace_min_per_km
-    Minuten pro Kilometer — die für Läufer aussagekräftigste Kennzahl.
-weekday / month
-    Aus date abgeleitet, für Trainingsmuster über die Woche und das Jahr.
-distance_category
-    Die bereits intern gebildeten Distanzklassen als sichtbare Spalte.
+    Pace in Minuten pro Kilometer. Sie kombiniert Dauer und Distanz zu einer
+    zentralen und im Laufsport üblichen Kennzahl.
 
-Zusätzlich aus TODO 7: Reskalierung (Standard/MinMax/Yeo-Johnson), Reshape
-zwischen Lang- und Breitformat sowie Zeitreihenfunktionen wie ein gleitender
-Mittelwert der Pace.
+duration_min
+    Dauer in Minuten. Die harmonisierte Variable duration_sec bleibt die
+    technische Basis, Minuten sind für die Interpretation eines Laufs jedoch
+    besser lesbar.
+
+Bewusst nicht ergänzt
+---------------------
+Wochentag und Monat werden nicht als eigene Features gespeichert, da sie für
+die vorliegende Analyse keinen zusätzlichen Nutzen bieten und jederzeit aus
+date abgeleitet werden können.
+
+Herzfrequenzzonen werden ebenfalls nicht abgeleitet. Trainingszonen sind
+individuell und benötigen zusätzliche personenbezogene Parameter bzw.
+individuell bestimmte Schwellenwerte, die in den vorliegenden Daten nicht
+enthalten sind.
+
+Die intern verwendeten Herzfrequenz-Quantile dienen ausschliesslich der
+Kalorien-Imputation und werden deshalb nicht als Trainingsfeatures
+interpretiert oder im finalen Datensatz gespeichert.
+
+
+Weitere geplante Transformationen
+---------------------------------
+Reskalierung (Standard/MinMax/Yeo-Johnson), Reshape zwischen Lang- und
+Breitformat sowie Zeitreihenfunktionen wie ein gleitender Mittelwert der Pace
+gehören zu TODO 7 und sind nicht Teil dieses Feature-Engineering-Schritts.
 """
+
+
+import pandas as pd
+
+def add_features(df: pd.DataFrame) -> pd.DataFrame:
+
+
+    out = df.copy()
+
+    out["duration_min"] = out["duration_sec"]/60
+    out["pace_min_per_km"] = out["duration_min"] / out["distance_km"]
+
+    return out
+
