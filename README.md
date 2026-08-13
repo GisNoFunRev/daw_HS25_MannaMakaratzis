@@ -40,3 +40,41 @@ The idea behind this folder structure is to be able to add diffrent exports from
     └── 2025-08-22
         └── Activities.csv
 ```
+
+
+## Workflow-Orchestrierung mit Snakemake
+
+Die bestehende Python-Pipeline ist zusätzlich in einen Snakemake-Workflow eingebettet.
+Das `Snakefile` definiert die Garmin- und Apple-Rohdaten als Inputs und die kombinierten
+CSV- und Parquet-Dateien als Outputs.
+
+Die Rohdaten werden automatisch über ihre Ordnerstruktur gefunden. Neue Exporte müssen
+dadurch nicht einzeln im `Snakefile` eingetragen werden, solange sie der gleichen Struktur
+folgen:
+
+```text
+data/garmin/<exportdatum>/Activities.csv
+data/apple/<exportdatum>/Export.xml
+```
+
+Der Workflow wird ausgeführt mit:
+
+```bash
+snakemake --cores 1
+```
+
+Für einen Dry Run, bei dem Snakemake den Workflow nur prüft und keine Verarbeitung
+ausführt:
+
+```bash
+snakemake -n --cores 1
+```
+
+Snakemake prüft die Abhängigkeiten zwischen Rohdaten und Ergebnisdateien. Sind die
+Outputs bereits vorhanden und aktuell, wird die Pipeline nicht erneut ausgeführt.
+Werden Rohdaten geändert oder ergänzt, erkennt Snakemake die Änderung und führt die
+betroffene Pipeline erneut aus.
+
+Snakemake ist als Laufzeitabhängigkeit in `requirements.txt` und `pyproject.toml`
+definiert. Der von Snakemake erzeugte Arbeitsordner `.snakemake/` wird über
+`.gitignore` nicht versioniert.
