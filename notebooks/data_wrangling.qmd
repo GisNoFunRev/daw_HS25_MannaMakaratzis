@@ -4,12 +4,12 @@ jupyter: python3
 ---
 
 
-## 0. Setup
+## 1. Setup
 
 Die gesamte Verarbeitungslogik liegt im Paket `running_data` unter `src/`.
 Dieses Notebook ist der Aufruf-Layer: Es ruft die Module in der fachlich
 richtigen Reihenfolge auf, dokumentiert die Entscheidungen und stellt die
-Ergebnisse dar — es definiert aber selbst keine Verarbeitungslogik mehr.
+Ergebnisse dar. Es definiert selbst keine Verarbeitungslogik.
 
 Voraussetzung ist eine einmalige Installation des Pakets aus dem
 Projektwurzelverzeichnis:
@@ -50,16 +50,16 @@ from running_data.cleaning import apple_typing, garmin_typing
 print(f"running_data {__import__('running_data').__version__} geladen")
 ```
 
-## 1. Importieren
+## 2. Import
 
-### 1.1 Garmin Data Import Strategy
+### 2.1 Garmin-Import
 
 Datenquelle: CSV-Export aus Garmin Connect mit strukturierten Aktivitätsdaten.
 
-Besondere Herausforderungen:
-  - Encoding-Problem: CSV-Dateien verwenden latin-1 statt Standard utf-8
-  - Semi-kolon Separator (europäisches Format)
-  - Spaltennamen nicht standardisiert (Leerzeichen, deutsche Umlaute möglich)
+Herausforderungen:
+  - Encoding: CSV-Dateien verwenden latin-1 statt utf-8
+  - Semikolon als Separator (europäisches Format)
+  - Spaltennamen nicht standardisiert (Leerzeichen, Umlaute möglich)
 
 Lösung: Multi-Encoding-Parser mit automatischer Erkennung und Spalten-Standardisierung.
 
@@ -71,30 +71,24 @@ print(f"Activity types: {garmin_df_raw['activity_type'].unique()}")
 garmin_df_raw.head(3)
 ```
 
-### 1.2 Apple Health Data Import Strategy
+### 2.2 Apple-Health-Import
 
-**Datenquelle**: XML-Export aus Apple Health App mit verschachtelter Struktur.
+Datenquelle: XML-Export aus Apple Health mit verschachtelter Struktur.
 
-**Besondere Herausforderungen**:
-  - Sehr große XML-Dateien (mehrere MB) → Memory-effizientes Parsing erforderlich
-  - Verschachtelte Datenstruktur: `<Workout>` -> `<WorkoutStatistics>` + `<MetadataEntry>`
-  - Fehlende direkte Attribute: Distance/Calories stehen in separaten Child-Elementen
-  - Viele verschiedene Metriken je nach Workout-Typ, aber nur wenige für spätere Analysen nötig
+Herausforderungen:
+  - Sehr grosse XML-Dateien: Memory-effizientes Parsing nötig
+  - Verschachtelte Struktur: `<Workout>` → `<WorkoutStatistics>` + `<MetadataEntry>`
+  - Distance/Calories stehen nicht direkt am Workout, sondern in separaten Child-Elementen
+  - Viele Metriken je Workout-Typ, aber nur wenige für die Analyse relevant
 
+Lösung: Streaming-XML-Parser mit gezielter Extraktion der Kernvariablen aus
+zwei XML-Bereichen:
+  - Workout-Attribute: `activity_type`, `date`, `duration`, `source`, `export_date`
+  - WorkoutStatistics: `distance_m`, `calories`, `avg_heart_rate`, `max_heart_rate`
 
-
-**Lösung**:
-Streaming XML-Parser mit gezielter Extraktion der relevanten Kernvariablen aus zwei XML-Bereichen:
-  - **Workout-Attribute**: `activity_type`, `date`, `duration`, `source`, `export_date`
-  - **WorkoutStatistics**: `distance_m`, `calories`, `avg_heart_rate`, `max_heart_rate`
-
-Damit wird der Import ressourcenschonend, das Schema bleibt schlank, und die Daten sind von Beginn an mit Garmin harmonisiert.
-
-
-**Zusätzliche Datenquellen identifiziert**:
-  - GPX-Dateien in workout-routes/: GPS-Punkte pro Workout mit Speed, Course, Elevation für detaillierte räumliche Analysen
-
-**Import-Strategie erfolgreich**: Separate DataFrames ermöglichen individuelle Bereinigung (LE2) und flexible Join-Strategien (LE4).
+Das hält den Import ressourcenschonend, das Schema schlank und die Daten von
+Beginn an mit Garmin harmonisiert. Zusammenführung der beiden Quellen
+erfolgt erst nach der Bereinigung (Kapitel 4), nicht beim Import.
 
 ```{python}
 # Import ausfuehren (LE1 - roh). Die Funktion liegt in
@@ -107,21 +101,19 @@ apple_df_raw = import_apple_workouts()
 apple_df_raw.head(132)
 ```
 
-## Bereinigen und Transformieren
+## 3. Bereinigen und Transformieren
 
-**Überblick:**
-Dieses Kapitel implementiert einen Best-Practice-Ansatz für Data Cleaning mit:
-- **Zentraler Konfiguration** aller Schwellenwerte
-- **Strukturiertem Logging** für Nachvollziehbarkeit
-- **Modularen Validatoren** für Wiederverwendbarkeit
-- **Pipeline-Pattern** für robuste Verarbeitung
-- **Transparenter Imputation** mit Tracking
-- **Automatischen Qualitätsmetriken**
+Garmin und Apple durchlaufen dieselbe Pipeline: zentrale Konfiguration,
+Logging, Validatoren und Qualitätsmetriken sind wiederverwendbare Bausteine
+(3.1), auf denen die quellenspezifische Bereinigung aufbaut (3.2, 3.3).
 
-### 2.0 Konfiguration & Infrastruktur
+### 3.1 Infrastruktur
 
-#### 2.0.1 Zentrale Konfiguration
-Die Klasse DataCleaningConfig kapselt alle Schwellenwerte und Parameter für die Datenbereinigung. Dadurch sind Anpassungen zentral möglich, ohne den Code zu verändern.
+#### 3.1.1 Zentrale Konfiguration
+
+Die Klasse `DataCleaningConfig` kapselt alle Schwellenwerte und Parameter für
+die Datenbereinigung. Anpassungen sind dadurch zentral möglich, ohne den
+restlichen Code zu verändern.
 
 ```{python}
 config = DataCleaningConfig()
@@ -132,11 +124,11 @@ print(f"   Pace:         {config.PACE_MIN}-{config.PACE_MAX} min/km")
 print(f"   Herzfrequenz: {config.HR_MIN}-{config.HR_MAX} bpm")
 ```
 
-#### 2.0.2 Logging & Reporting Infrastructure
+#### 3.1.2 Logging & Reporting
 
-Es wird wird ein Standard-Logger eingerichtet, der alle Bereinigungsschritte und Entscheidungen protokolliert.
-
-Die CleaningReport-Klasse sammelt Metriken zu entfernten/angepassten Zeilen, um die Datenqualität zu überwachen. 
+Ein Standard-Logger protokolliert alle Bereinigungsschritte. Die Klasse
+`CleaningReport` sammelt dazu Metriken zu entfernten und angepassten Zeilen
+je Schritt.
 
 ```{python}
 # Logging einmalig fuer diesen Notebook-Lauf einrichten. Die Module selbst
@@ -151,12 +143,13 @@ from running_data.pipeline.report import CleaningReport
 print(f"Logging aktiv, {CleaningReport.__name__} verfuegbar")
 ```
 
-#### 2.0.3 Modularisierte Validatoren
+#### 3.1.3 Validatoren
 
-Die `DataValidator`-Klasse ist das **Herzstück der Datenqualitätsprüfung**. Sie kapselt alle Validierungsregeln für Laufdaten in wiederverwendbare, statische Methoden. Für jede Methode wird eine spezifische Regel implementiert, die eine boolesche Maske zurückgibt, welche Zeilen die Regel nicht erfüllen.
-
-**Verwendung in der Pipeline:**
-Diese Validatoren werden in `step_validate_plausibility()` kombiniert, um Zeilen mit unrealistischen Werten zu filtern.
+`DataValidator` kapselt alle Validierungsregeln für Laufdaten als
+wiederverwendbare, statische Methoden. Jede Methode liefert eine boolesche
+Maske für Zeilen, die die Regel verletzen. Verwendet wird das sowohl in
+`step_validate_plausibility()` zum Filtern als auch in den Qualitätsmetriken
+zum Messen.
 
 ```{python}
 from running_data.cleaning.validators import DataValidator
@@ -169,35 +162,19 @@ for name in sorted(n for n in vars(DataValidator) if n.startswith("validate_")):
     print(f"  - {name}")
 ```
 
-#### 2.0.4 Helper-Funktionen für Imputation
+#### 3.1.4 Imputation-Helper
 
-Hier werden Helper Funktionen definiert, für das Handling von fehlenden Kalorienwerten basierend auf Distanz und Dauer.
+Fehlende Kalorienwerte werden gruppenbasiert imputiert: Distanz-Bin ×
+HF-Quartil je Quelle, mit einer vierstufigen Fallback-Kette, falls eine
+Gruppe leer ist. Die Spalten `calories_imputed` und `imputation_level`
+dokumentieren pro Zeile, ob und auf welcher Stufe imputiert wurde.
 
-
-**Ablauf:**
-1. **Binning**: Distanz-Kategorien + HR-Quartile je Quelle erstellen
-2. **Fehlerkennung**: Werte ≤0 oder NaN → als fehlend markieren
-3. **Median-Lookup**: 4-stufige Fallback-Kette für jeden fehlenden Wert
-4. **Tracking**: 
-   - `calories_imputed` (Boolean): Wurde imputiert?
-   - `imputation_level` (String): Auf welcher Ebene?
-5. **Logging**: Zusammenfassung der verwendeten Imputation-Levels
-6. **Cleanup**: Temporäre Hilfsspalten (`_dist_bin`, `_hr_bin`) entfernen
-
-
-| Level | Gruppierung | Präzision | Fallback bei |
-|-------|------------|-----------|--------------|
-| **Level 3** | source + dist_bin + hr_bin | Höchste | Gruppe leer |
-| **Level 2** | source + dist_bin | Hoch | Gruppe leer |
-| **Level 1** | source | Mittel | Gruppe leer |
-| **Level 0** | Global (gesamter Datensatz) | Niedrig | Immer verfügbar |
-
-
-**Vorteile:**
-- **Sportphysiologisch sinnvoll**: Kalorien korrelieren mit Distanz × Intensität (HR)
-- **Robustheit**: Fallback-Kette verhindert fehlgeschlagene Imputation
-- **Transparenz**: Tracking ermöglicht Audit Trail und Qualitätsbewertung
-- **Quellenspezifisch**: Berücksichtigt unterschiedliche Kalibrierungen (Garmin vs. Apple)
+| Level | Gruppierung | Fallback bei |
+|-------|------------|--------------|
+| 3 | source + dist_bin + hr_bin | Gruppe leer |
+| 2 | source + dist_bin | Gruppe leer |
+| 1 | source | Gruppe leer |
+| 0 | global | immer verfügbar |
 
 ```{python}
 from running_data.cleaning.imputation import impute_grouped_calories
@@ -208,96 +185,52 @@ print(f"Distanzklassen (km):   {config.DISTANCE_BINS}")
 print(f"HF-Quantile je Quelle: {config.HR_QUANTILES}")
 ```
 
-#### 2.0.5 Pipeline-Pattern
+#### 3.1.5 Pipeline-Pattern
 
-Das **Pipeline-Pattern** orchestriert alle Bereinigungsschritte in einer robusten, nachvollziehbaren Sequenz. Es besteht aus zwei Klassen: `CleaningStep` (definiert einzelne Schritte) und `DataCleaningPipeline` (führt Schritte aus).
+`CleaningStep` und `DataCleaningPipeline` orchestrieren die Bereinigung als
+Sequenz benannter Schritte.
 
-**Komponenten:**
+`CleaningStep`:
+  - `name`: Schrittname, z.B. "Remove Duplicates"
+  - `function`: auszuführende Funktion, Signatur `(df, config, report)`
+  - `description`: Beschreibung für die Dokumentation
+  - `is_critical`: Pipeline bei Fehler stoppen (True) oder weiterlaufen (False)
 
-**1. `CleaningStep` (Dataclass)**
-- **name**: Eindeutiger Schrittname (z.B. "Remove Duplicates")
-- **function**: Die auszuführende Funktion (z.B. `step_remove_duplicates`)
-- **description**: Lesbare Beschreibung für Dokumentation
-- **is_critical**: Wenn ein Fehler auftritt, soll die Pipeline stoppen (True) oder weiterlaufen (False)
+`DataCleaningPipeline`:
+  - `add_step(step)`: fügt einen Schritt hinzu, Fluent Interface
+  - `run(df)`: führt alle Schritte sequenziell aus, gibt `(cleaned_df, report)` zurück
 
-**2. `DataCleaningPipeline` (Orchestrator)**
-- **`__init__(source, config)`**: Initialisiert Pipeline mit Quelle ("Garmin"/"Apple") und Konfiguration
-- **`add_step(step)`**: Fügt CleaningStep hinzu (Fluent Interface → Method Chaining möglich)
-- **`run(df)`**: Führt alle Schritte sequenziell aus und gibt (cleaned_df, report) zurück
+Fehlerbehandlung je Schritt-Typ:
 
-**Ablauf der `run()`-Methode:**
-
-1. **Initialisierung**: Speichert initial_rows, erstellt DataFrame-Kopie
-2. **Für jeden Schritt**:
-   - Loggt Start: "[1/8] Starting: Date Imputation"
-   - Misst rows_before
-   - Führt step.function(df, config, report) aus
-   - Misst rows_after
-   - Dokumentiert in CleaningReport
-   - **Fehlerbehandlung**:
-     - `is_critical=True` → Pipeline stoppt bei Fehler
-     - `is_critical=False` → Warnung, Pipeline läuft weiter
-3. **Finalisierung**: Speichert final_rows, loggt Completion
-
----
-
-**Fehlerbehandlung:**
-
-| Schritt-Typ | Fehler-Strategie | Beispiel |
-|-------------|------------------|----------|
-| **Critical** | Pipeline stoppt sofort | "Validate Essentials" (Pflichtfelder fehlen) |
-| **Non-Critical** | Warnung, weiterlaufen | "Calories Imputation" (kann später imputiert werden) |
-
----
-
-**Vorteile:**
-
-- **Modularität**: Jeder Schritt ist unabhängig testbar und wiederverwendbar
-- **Wiederverwendbarkeit**: Gleiche Pipeline für Garmin und Apple (8 identische Schritte)
-- **Fehlertoleranz**: Nicht-kritische Schritte können fehlschlagen ohne Pipeline-Abbruch
-- **Transparenz**: Jeder Schritt wird geloggt und im CleaningReport dokumentiert
-- **Audit Trail**: Vollständige Nachvollziehbarkeit aller Bereinigungsschritte
-- **Fluent API**: Method Chaining (`.add_step().add_step()`) macht Code lesbar
+| Schritt-Typ | Strategie | Beispiel |
+|-------------|-----------|----------|
+| kritisch | Pipeline stoppt sofort | "Validate Essentials" (Pflichtfelder fehlen) |
+| unkritisch | Warnung, weiterlaufen | "Calories Imputation" (kann später imputiert werden) |
 
 ```{python}
 from running_data.pipeline.core import CleaningStep, DataCleaningPipeline
 
 # core.py kennt nur die Mechanik, nicht die konkreten Schritte. Welche
-# Schritte zusammengesetzt werden, entscheidet die factory (siehe 2.0.7).
+# Schritte zusammengesetzt werden, entscheidet die factory (siehe 3.1.7).
 print("Pipeline-Pattern geladen:")
 print(f"  {CleaningStep.__name__:22s} Definition eines Schritts")
 print(f"  {DataCleaningPipeline.__name__:22s} fuehrt die Schritte aus")
 ```
 
-#### 2.0.6 Datenqualitäts-Metriken
+#### 3.1.6 Qualitätsmetriken
 
-Die `DataQualityChecker`-Klasse bewertet die Datenqualität nach bereinigten Datensätzen anhand etablierter **Data Quality Dimensions**. [Definition zu Data Quality Dimensions](https://dqops.com/docs/dqo-concepts/data-quality-dimensions/). 
+`DataQualityChecker` bewertet einen bereinigten Datensatz anhand von vier
+[Data Quality Dimensions](https://dqops.com/docs/dqo-concepts/data-quality-dimensions/):
 
-Sie liefert quantifizierbare Metriken für Qualitätssicherung.
+| Dimension | Berechnung | Beispiel |
+|-----------|------------|----------|
+| Completeness | `1 - (NaN / total)` pro Spalte | `distance_km: 0.98` |
+| Validity | Anteil plausibel laut `DataValidator` | `pace: 0.95` |
+| Consistency | logische Konsistenz zwischen Variablen | `hr_max_vs_avg: 0.99` |
+| Uniqueness | `1 - (duplicates / total)` | `workouts: 1.0` |
 
-**Verwendung in der Pipeline:**
-Nach Abschluss der Bereinigung wird `assess_quality()` aufgerufen, um die Qualität des finalen Datensatzes zu messen und zu dokumentieren.
-
-**Ablauf:**
-
-1. **assess_quality()**: Berechnet Metriken für alle 4 Qualitätsdimensionen
-2. **quality_report()**: Formatiert die Metriken als DataFrame mit Status-Indikatoren
-
-**Qualitätsdimensionen:**
-
-| Dimension | Berechnung | Beispiel-Metrik | Bedeutung |
-|-----------|------------|-----------------|-----------|
-| **Completeness** | `1 - (NaN / total)` pro Spalte | `distance_km: 0.98` | 98% der Distanzwerte vorhanden |
-| **Validity** | Anteil plausibel mittels `DataValidator` | `pace: 0.95` | 95% der Pace-Werte in realistischem Bereich |
-| **Consistency** | Logische Konsistenz zwischen Variablen | `hr_max_vs_avg: 0.99` | 99% konsistent (max ≥ avg) |
-| **Uniqueness** | `1 - (duplicates / total)` | `workouts: 1.0` | Keine Duplikate vorhanden |
-
-**Vorteile:**
-
-- **Standardisiert**: Nutzt etablierte Data Quality Framework-Dimensionen
-- **Automatisiert**: Keine manuelle Inspektion nötig
-- **Vergleichbar**: Konsistente Metriken über Garmin und Apple hinweg
-- **Actionable**: Status-Indikatoren (✅ ≥95%, ⚠️ 85-95%, ❌ <85%) zeigen Handlungsbedarf
+`quality_report()` formatiert die Metriken als DataFrame mit Status-Indikatoren
+(✅ ab 95 %, ⚠️ ab 85 %, sonst ❌).
 
 ```{python}
 # DataQualityChecker wurde bereits im Setup importiert.
@@ -306,25 +239,21 @@ for dimension in ("completeness", "validity", "consistency", "uniqueness"):
     print(f"  - {dimension}")
 ```
 
-#### 2.0.7 Modularisierte Bereinigungsschritte
+#### 3.1.7 Bereinigungsschritte
 
-Die **8 Bereinigungsfunktionen** sind als eigenständige, wiederverwendbare Module implementiert. Jede Funktion erhält `(df, config, report)` und gibt einen bereinigten DataFrame zurück.
-
-**Verwendung in der Pipeline:**
-Diese Funktionen werden in `DataCleaningPipeline` über `CleaningStep`-Objekte eingefügt und sequenziell ausgeführt.
-
-**Die 8 Bereinigungsschritte:**
+Acht Bereinigungsfunktionen, jede mit Signatur `(df, config, report) -> df`,
+zusammengesetzt über `CleaningStep`-Objekte:
 
 | # | Funktion | Beschreibung |
 |---|----------|--------------|
-| **1** | `step_impute_dates()` | Imputiert fehlende `date`-Werte aus `export_date` (Ordnername), um Datenverlust zu vermeiden |
-| **2** | `step_remove_duplicates()` | Entfernt Duplikate basierend auf `(source, date, distance_km, duration_sec)` |
-| **3** | `step_validate_essentials()` | Droppt Zeilen ohne `distance_km` oder `duration_sec` (essenzielle Metriken) |
-| **4** | `step_validate_plausibility()` | Filtert unrealistische Werte für Distanz, Dauer und Pace mittels `DataValidator` |
-| **5** | `step_clean_heart_rate()` | Bereinigt HR-Werte (Plausibilität, Konsistenz max≥avg), imputiert fehlende Werte mit Median |
-| **6** | `step_impute_calories()` | Gruppenbasierte Imputation (4-Level-Fallback) + Winsorising für Kalorien |
-| **7** | `step_final_hr_sweep()` | Entfernt Zeilen mit physiologisch unrealistischen Herzfrequenzwerten (80–210 bpm) |
-| **8** | `step_finalize_types()` | Setzt finale Datentypen (`category` für activity_type und source) |
+| 1 | `step_impute_dates()` | imputiert fehlende `date`-Werte aus `export_date` |
+| 2 | `step_remove_duplicates()` | entfernt Duplikate über `(source, date, distance_km, duration_sec)` |
+| 3 | `step_validate_essentials()` | droppt Zeilen ohne `distance_km` oder `duration_sec` |
+| 4 | `step_validate_plausibility()` | filtert unrealistische Werte für Distanz, Dauer, Pace |
+| 5 | `step_clean_heart_rate()` | bereinigt HR-Werte, imputiert fehlende mit Median |
+| 6 | `step_impute_calories()` | gruppenbasierte Imputation + Winsorising |
+| 7 | `step_final_hr_sweep()` | entfernt physiologisch unrealistische HR-Werte (80–210 bpm) |
+| 8 | `step_finalize_types()` | setzt finale Datentypen (`category` für activity_type, source) |
 
 ```{python}
 from running_data.pipeline.factory import DEFAULT_CLEANING_STEPS
@@ -345,106 +274,15 @@ pd.DataFrame(
 )
 ```
 
-### 2.1 Garmin Data Cleaning
+### 3.2 Garmin
 
-**Strategie:**
-Modulare Pipeline mit transparentem Reporting und Qualitätsprüfung.
+#### 3.2.1 Filter nach Laufsport
 
-**Schritte:**
-1. Filter nach Laufsport
-2. Reduktion auf Kernvariablen  
-3. Typisierung & Einheitennormalisierung
-4. Pipeline-basierte Bereinigung
-5. Qualitätsbewertung
-
-#### 2.1.1 Filter nach Laufsport & Schema-Reduktion
-
-**2.1.3 Typisierung und Einheiten**
-
-**Ziel:**
-Die Rohdaten aus den Garmin-CSV-Dateien werden in eine einheitlich auswertbare Form gebracht.
-
-
-**Vorgehen:**
-1. `date` wird in das Datumsformat (`datetime64`) konvertiert → ermöglicht Zeitreihen-Analysen.
-2. `duration` wird aus Textformat (`hh:mm:ss` oder `mm:ss`) in Sekunden (`duration_sec`) umgerechnet → erleichtert Berechnungen von Pace, Geschwindigkeit und Dauervergleichen.
-3. `distance_km` wird geprüft – falls Werte über 200 vorkommen, wird angenommen, dass sie in **Metern** vorliegen, und durch 1000 geteilt.
-4. Alle numerischen Variablen (`distance_km`, `duration_sec`, `calories`, `avg_heart_rate`, `max_heart_rate`) werden zu `float` konvertiert → sichert mathematische Operationen.
-5. Kategorische Variablen (`activity_type`, `source`) werden als `category` typisiert → spart Speicherplatz und ermöglicht Gruppenanalysen.
-6. Eine Übersicht der wichtigsten numerischen Spalten (`describe()`) überprüft die Typisierung.
-
-**Ergebnis:**
-Ein DataFrame `garmin_df_typed` mit konsistenten Datentypen, normierten Einheiten und der neuen Variable `duration_sec`,
-der als Grundlage für die weitere Datenbereinigung dient.
-
----
-
-**2.1.4 Data Cleaning**
-
-**Vorbedingungen:**
-`date` ist als `datetime64` typisiert, `activity_type` auf *Running* gefiltert.
-**Duplikate:** werden je Quelle über den Schlüssel `("date","distance_km","duration_sec")` entfernt (erstes Vorkommen bleibt).
-
-
-
-**date**
-- **Missing:** aus `export_date` abgeleitet (Ordnername).
-  → Garmin-Ordner enthalten jeweils das Exportdatum, daher präzise Rekonstruktion möglich.
-- **Datenfehler:** Zukunftsdaten → `NaT`.
-- **Begründung:** Rekonstruktion vermeidet unnötigen Datenverlust durch fehlende Zeitstempel.
-
-**distance_km**
-- **Missing:** droppen (essenzielle Metrik).
-- **Datenfehler:** ≤ 0 oder < 0.1 km → droppen.
-- **Ausreisser:** ausserhalb [0.1, 50] km oder inkonsistente Pace (mit `duration_sec`).
-- **Begründung:** Werte ausserhalb des Bereichs stammen meist von Gerätefehlern oder fehlerhaftem Export.
-
-**duration_sec**
-- **Missing:** droppen.
-- **Datenfehler:** ≤ 0 s oder > 14 400 s (4 h) → droppen.
-- **Ausreisser:** Pace ausserhalb [2, 10.5] min/km → droppen.
-- **Begründung:** 10.5 min/km bildet eine realistische Obergrenze für langsame Dauerläufe; langsamere Werte deuten auf Pausen oder Inaktivität hin.
-
-**calories**
-- **Missing / fehlerhafte (≤ 0 / negativ):** gruppenbasierte Median-Imputation:
-  - Distanz-Bins: [0–5), [5–10), [10–15), [15–25), [25–50) km
-  - Herzfrequenz-Bins: Quartile der `avg_heart_rate` je `source`
-  - Fallback: (dist_bin, source) → (source) → globaler Median
-- **Ausreisser:** absolute Grenzen [50, 3000] kcal und Verhältnis 25–120 kcal/km (Winsorising).
-- **Begründung:** Median-Binning nach Distanz × HF spiegelt Trainingsaufwand realistischer wider als globale Mittelwerte.
-
-**avg_heart_rate**
-- **Missing:** Median-Imputation je `source`.
-- **Datenfehler:** ≤ 0 bpm → NaN.
-- **Ausreisser:** ausserhalb [80, 210] bpm → droppen.
-- **Begründung:** Median-Imputation ist für sportphysiologische Daten ausreichend robust (vgl. Scharhag et al., *Int J Sports Physiol Perform*, 2019).
-
-**max_heart_rate**
-- **Missing:** Median-Imputation je `source`.
-- **Konsistenzregel:**
-  - wenn `max_hr < avg_hr` und Differenz ≤ 3 bpm → `max_hr = avg_hr` (Rundungsabweichung)
-  - sonst beide NaN (→ Imputation).
-- **Ausreisser:** > 230 bpm → droppen.
-- **Begründung:** korrigiert Rundungsfehler und eliminiert unphysiologische Spitzen.
-
-**source**
-- **Missing:** mit `"garmin"` füllen und als `category` typisieren.
-- **Begründung:** sichert eindeutige Zuordnung der Datenquelle.
-
-**export_date**
-- **Missing:** aus Pfad abgeleitet; falls nicht verfügbar → `NaT`.
-- **Begründung:** Exportdatum liefert eindeutige zeitliche Einordnung und Herkunftsinformation.
-
----
-
-**Gesamtergebnis:**
-Ein bereinigter Garmin-Datensatz mit plausiblen Werten, stabilen Einheiten und konsistentem Zeitindex.
-Alle Verarbeitungsschritte sind in der Funktion `clean_garmin_data()` dokumentiert und reproduzierbar.
-
-#### 2.1.1 Filter nach Laufsport
+Nur Aktivitäten vom Typ `Running` werden behalten, danach wird auf die
+Kernvariablen reduziert (`running_data.config.RAW_CORE_COLUMNS`).
 
 ```{python}
-# Der Import aus Kapitel 1 wird wiederverwendet - erneutes Einlesen
+# Der Import aus Kapitel 2 wird wiederverwendet - erneutes Einlesen
 # derselben Dateien wuerde dasselbe Ergebnis liefern.
 garmin_df = garmin_typing.filter_running(garmin_df_raw)
 print(garmin_df["activity_type"].value_counts())
@@ -454,7 +292,13 @@ garmin_df_core = garmin_typing.reduce_to_core_columns(garmin_df)
 garmin_df_core.head(3)
 ```
 
-#### 2.1.2 Typisierung und Einheiten
+#### 3.2.2 Typisierung und Einheiten
+
+  - `date` → `datetime64`
+  - `duration` (Text `hh:mm:ss`/`mm:ss`) → `duration_sec` in Sekunden
+  - `distance_km`: Werte über 200 gelten als Meter und werden durch 1000 geteilt
+  - numerische Spalten (`distance_km`, `duration_sec`, `calories`, `avg_heart_rate`, `max_heart_rate`) → `float`
+  - kategorische Spalten (`activity_type`, `source`) → `category`
 
 ```{python}
 garmin_df_typed = garmin_typing.clean_garmin_typing(garmin_df_core)
@@ -463,7 +307,21 @@ print("\nNumerische Variablen (Garmin):")
 garmin_df_typed[NUMERIC_COLUMNS].describe().T.round(2)
 ```
 
-#### 2.1.3 Pipeline-basierte Bereinigung
+#### 3.2.3 Pipeline-basierte Bereinigung
+
+Duplikate werden je Quelle über `(date, distance_km, duration_sec)` entfernt,
+das erste Vorkommen bleibt. Die Bereinigungsregeln je Feld:
+
+| Feld | Missing | Fehler / Ausreisser | Begründung |
+|------|---------|----------------------|------------|
+| `date` | aus `export_date` (Ordnername) rekonstruiert | Zukunftsdatum → `NaT` | Ordnername liefert das exakte Exportdatum |
+| `distance_km` | droppen | < 0.1 km oder > 50 km, oder Pace-Inkonsistenz → droppen | ausserhalb realistischer Laufdistanzen |
+| `duration_sec` | droppen | ≤ 0 s oder > 4 h → droppen; Pace ausserhalb [2, 10.5] min/km → droppen | 10.5 min/km ist eine realistische Grenze für langsame Dauerläufe |
+| `calories` | gruppenbasierte Median-Imputation (Distanz-Bin × HF-Quartil × Quelle, Fallback-Kette) | Grenzen [50, 3000] kcal, Verhältnis 25–120 kcal/km (Winsorising) | Median nach Distanz × HF bildet den Trainingsaufwand realistischer ab als ein globaler Mittelwert |
+| `avg_heart_rate` | Median-Imputation je Quelle | ≤ 0 bpm → NaN; ausserhalb [80, 210] bpm → droppen | Median ist für sportphysiologische Daten robust genug (Scharhag et al., *Int J Sports Physiol Perform*, 2019) |
+| `max_heart_rate` | Median-Imputation je Quelle | `max_hr < avg_hr` mit Differenz ≤ 3 bpm → auf `avg_hr` korrigiert; sonst beide NaN; > 230 bpm → droppen | korrigiert Rundungsfehler, eliminiert unphysiologische Spitzen |
+| `source` | mit `"garmin"` gefüllt, als `category` typisiert | – | eindeutige Zuordnung der Datenquelle |
+| `export_date` | aus Pfad abgeleitet, sonst `NaT` | – | liefert zeitliche Einordnung und Herkunft |
 
 ```{python}
 # Ersetzt die zuvor 57 Zeilen lange, fuer Garmin und Apple wortgleich
@@ -474,7 +332,7 @@ garmin_clean, garmin_report = build_cleaning_pipeline("Garmin", config).run(
 )
 ```
 
-#### 2.1.4 Qualitätsbewertung & Report
+#### 3.2.4 Qualitätsbewertung & Report
 
 ```{python}
 # Summary anzeigen
@@ -493,27 +351,23 @@ print(f"\nGarmin bereinigte Daten: {len(garmin_clean)} Zeilen")
 garmin_clean.head()
 ```
 
-### 2.2 Apple Data Cleaning
+### 3.3 Apple Health
 
-**Strategie:**
-Identische Pipeline-basierte Bereinigung wie Garmin für konsistente Datenqualität.
+Gleiche Pipeline wie Garmin (3.1.7), für konsistente Datenqualität über beide
+Quellen.
 
-**Schritte:**
-1. Filter nach Laufsport
-2. Typisierung & Einheitennormalisierung (mit Apple-spezifischen Anpassungen)
-3. Pipeline-basierte Bereinigung (gleiche Steps wie Garmin)
-4. Qualitätsbewertung
-
-#### 2.2.1 Filter nach Laufsport
+#### 3.3.1 Filter nach Laufsport
 
 ```{python}
 apple_df = apple_typing.filter_running(apple_df_raw)
 print(apple_df["activity_type"].value_counts())
 ```
 
-#### 2.2.2 Typisierung und Einheiten
+#### 3.3.2 Typisierung und Einheiten
 
-Apple Health hat unterschiedliche Einheitenkonventionen als Garmin:
+Abweichend von Garmin: Dauer liegt in Minuten vor, Distanz und Kalorien
+stehen in `WorkoutStatistics`-Kindelementen statt direkt am Workout, und
+Zeitstempel tragen einen Zeitzonen-Offset, der entfernt wird.
 
 ```{python}
 apple_df_typed = apple_typing.clean_apple_typing(apple_df)
@@ -522,9 +376,9 @@ print("\nNumerische Variablen (Apple):")
 apple_df_typed[NUMERIC_COLUMNS].describe().T.round(2)
 ```
 
-#### 2.2.3 Pipeline-basierte Bereinigung
+#### 3.3.3 Pipeline-basierte Bereinigung
 
-Identische Pipeline wie Garmin für konsistente Datenqualität über alle Quellen hinweg.
+Gleiche Regeln wie Garmin, siehe 3.2.3.
 
 ```{python}
 # Identischer Aufruf wie bei Garmin - nur der Quellenname unterscheidet sich.
@@ -533,7 +387,7 @@ apple_clean, apple_report = build_cleaning_pipeline("Apple", config).run(
 )
 ```
 
-#### 2.2.4 Qualitätsbewertung & Report
+#### 3.3.4 Qualitätsbewertung & Report
 
 ```{python}
 # Summary anzeigen
@@ -552,7 +406,7 @@ print(f"\nApple bereinigte Daten: {len(apple_clean)} Zeilen")
 apple_clean.head()
 ```
 
-### 2.3 Vergleich & Zusammenfassung
+### 3.4 Vergleich
 
 Vergleich der Bereinigungsergebnisse zwischen Garmin und Apple Health.
 
@@ -577,93 +431,16 @@ print("   (running_data.pipeline.factory.DEFAULT_CLEANING_STEPS),")
 print("   dieselben Validierungsregeln und dieselben Qualitaetsmetriken.")
 ```
 
----
+## 4. Verknüpfen
 
-#### 🎯 Kapitel 2 Zusammenfassung: Best Practices implementiert
+Nach der quellenspezifischen Bereinigung werden die harmonisierten Garmin-
+und Apple-Datensätze zusammengeführt.
 
-**Erreichte Verbesserungen:**
-
- 1️⃣ **Zentrale Konfiguration** (`DataCleaningConfig`)
-- Alle Schwellenwerte an einem Ort
-- Leicht anpassbar für verschiedene Anforderungen
-- Dokumentierte Parameter
-
- 2️⃣ **Strukturiertes Logging & Reporting**
-- `CleaningReport`: Detaillierte Schritt-Dokumentation
-- Retention Rates für jeden Schritt
-- Exportierbare Berichte für Audit Trail
-
- 3️⃣ **Modularisierte Validatoren** (`DataValidator`)
-- Wiederverwendbare Validierungsfunktionen
-- Konsistente Prüfungen über alle Quellen
-- Testbare Einzelkomponenten
-
- 4️⃣ **Pipeline-Pattern** (`DataCleaningPipeline`)
-- Robuste Fehlerbehandlung
-- Kritische vs. nicht-kritische Schritte
-- Identische Pipeline für Garmin + Apple
-
- 5️⃣ **Transparente Imputation**
-- Tracking welche Werte imputiert wurden
-- Dokumentation der Imputation-Levels
-- Gruppenbasierte Median-Strategie
-
- 6️⃣ **Automatische Qualitätsmetriken** (`DataQualityChecker`)
-- Completeness (Vollständigkeit)
-- Validity (Plausibilität)
-- Consistency (Konsistenz)
-- Uniqueness (Eindeutigkeit)
-
- 7️⃣ **8 Modularisierte Bereinigungsschritte**
-1. Date Imputation
-2. Remove Duplicates
-3. Validate Essentials
-4. Plausibility Checks
-5. Heart Rate Cleaning
-6. Calories Imputation
-7. Final HR Sweep
-8. Finalize Types
-
- Vorteile:
-
-✅ **Wartbarkeit**: Zentrale Konfiguration, modularer Code  
-✅ **Nachvollziehbarkeit**: Strukturiertes Logging, detaillierte Reports  
-✅ **Wiederverwendbarkeit**: Gleiche Pipeline für Garmin + Apple  
-✅ **Fehlerbehandlung**: Try-Catch, kritische vs. nicht-kritische Steps  
-✅ **Qualitätskontrolle**: Automatische Metriken nach Best Practices  
-✅ **Transparenz**: Imputation-Tracking, vollständige Dokumentation  
-✅ **Testbarkeit**: Einzelne Funktionen können unit-getestet werden  
-
----
-
- LE4: Verknüpfen
-
-
-
-
- LE5: Datenpipelines
-
-
-
-
- LE6: Reproduzierbarkeit
-
-
-## Verknüpfen
-
-
-**2.0 Zusammenführung der Datenquellen**
-
-Strategie:
-
-Nach Abschluss der Quell-spezifischen Pipelines (Garmin & Apple) erfolgt die Zusammenführung beider harmonisierter Datensätze zu einem einheitlichen Frame für Analyse und Visualisierung.
-
-Wichtige Lernpunkte:
-
-- Da jeder Lauf separat gemessen wird, machen **joins** keinen Sinn, da in unserem Szenario eine Person nicht parallel Garmin und Apple Messgeräte verwendet (keine 1:1-Beziehung).
-- Stattdessen wird eine **Konkatenation** (Vertikales Zusammenfügen) durchgeführt.
-- Der Import und die Zusammenführung (Concatenation) gehört nicht mehr in die Pipeline,
-sondern ist ein vor- resp. nachgelagerter Schritt.
+Da jeder Lauf nur mit einem Gerät gemessen wird, existiert keine
+1:1-Beziehung zwischen den Quellen. Ein Join ergibt deshalb keinen Sinn, es
+wird vertikal konkateniert (`concat_sources`). Import und Zusammenführung
+liegen bewusst ausserhalb der Bereinigungspipeline, als vor- bzw.
+nachgelagerter Schritt.
 
 ```{python}
 combined_no_dedupe = concat_sources([garmin_clean, apple_clean])
@@ -672,13 +449,13 @@ print(len(combined_no_dedupe))  # sollte Garmin + Apple ergeben
 combined_no_dedupe
 ```
 
-## Abgeleitete Variablen
+## 5. Abgeleitete Variablen
 
 Aus den bereinigten Messwerten lassen sich Kennzahlen ableiten, die für die
-Interpretation eines Laufs aussagekräftiger sind als die Rohwerte. `add_features`
-ergänzt `pace_min_per_km` und `duration_min` als sichtbare Spalten im
-Endergebnis — die Pace wurde zuvor zwar in den Validatoren berechnet, dort aber
-nur zur Plausibilitätsprüfung ausgewertet und anschliessend verworfen.
+Interpretation eines Laufs aussagekräftiger sind als die Rohwerte.
+`add_features` ergänzt `pace_min_per_km` und `duration_min` als sichtbare
+Spalten. Die Pace wurde zuvor bereits in den Validatoren berechnet, dort aber
+nur zur Plausibilitätsprüfung verwendet und anschliessend verworfen.
 
 ```{python}
 combined_featured = add_features(combined_no_dedupe)
@@ -687,9 +464,10 @@ print(f"{combined_no_dedupe.shape[1]} → {combined_featured.shape[1]} Spalten")
 combined_featured[["date", "distance_km", "duration_min", "pace_min_per_km"]].head()
 ```
 
-## Exportieren
+## 6. Export
 
-Outputlayer
+Der bereinigte, zusammengeführte Datensatz wird geschrieben: Parquet als
+massgebliches Format mit Datentypen, CSV als Kontrollkopie.
 
 ```{python}
 # Output-Layer: persistierte Version des kombinierten DataFrames.
@@ -709,14 +487,14 @@ df = read_processed()
 print(df)
 ```
 
-## Die gesamte Verarbeitung als eine Funktion
+## 7. Pipeline als Funktion
 
 Alle Zellen bis hierher zeigen die Verarbeitung Schritt für Schritt: Jeder
 Zwischenstand ist sichtbar, jede Entscheidung nachvollziehbar. Für die
-*Ausführung* ist das jedoch unpraktisch — wer das Projekt nur laufen lassen
-will, müsste sämtliche Zellen in der richtigen Reihenfolge durchklicken.
+Ausführung ist das unpraktisch, wer das Projekt nur laufen lassen will,
+müsste sämtliche Zellen in der richtigen Reihenfolge durchklicken.
 
-`run_pipeline()` fasst genau dieselbe Kette in einem Aufruf zusammen:
+`run_pipeline()` fasst dieselbe Kette in einem Aufruf zusammen:
 
 ```
 je Quelle:  Import → Typisierung → Bereinigung (8 Schritte)
@@ -725,7 +503,7 @@ danach:     Zusammenführung → abgeleitete Variablen → Export
 
 Dass die Reihenfolge nur in Zellpositionen existierte, hatte eine konkrete
 Folge: `add_features` war implementiert und exportiert, wurde aber von keiner
-Zelle aufgerufen — die abgeleiteten Variablen fehlten im Ergebnis, ohne dass
+Zelle aufgerufen. Die abgeleiteten Variablen fehlten im Ergebnis, ohne dass
 etwas fehlschlug. In `run_pipeline` steht die Reihenfolge einmal an einer
 Stelle.
 
@@ -740,7 +518,7 @@ for kind, path in result.outputs.items():
 
 Das Ergebnis ist mehr als der Datensatz: `run_pipeline` gibt auch die
 Bereinigungsberichte und die Qualitätsmetriken je Quelle zurück. Die
-Vergleichstabelle aus Kapitel 2.3 lässt sich damit direkt erzeugen.
+Vergleichstabelle aus Kapitel 3.4 lässt sich damit direkt erzeugen.
 
 ```{python}
 print(
@@ -754,7 +532,7 @@ pd.testing.assert_frame_equal(result.data, combined_featured)
 print("run_pipeline() liefert exakt das Ergebnis der Zellen oben.")
 ```
 
-### Ausführung ohne Notebook
+### 7.1 Ausführung ohne Notebook
 
 Für die Abgabe und die Weitergabe an Dritte gibt es denselben Ablauf als
 Kommandozeilenbefehl. Er braucht weder Jupyter noch Python-Kenntnisse:
@@ -769,4 +547,3 @@ Mit abweichenden Pfaden oder ohne zu schreiben:
 python -m running_data --output ergebnisse/
 python -m running_data --dry-run
 ```
-
