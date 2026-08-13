@@ -21,6 +21,25 @@ apple_files = glob("data/apple/*/Export.xml")
 
 
 '''
+Sucht zusätzlich alle Python-Dateien der running_data-Pipeline.
+
+Dadurch wird nicht nur eine Änderung an den Rohdaten als Abhängigkeit
+erkannt, sondern auch eine Änderung an der Verarbeitungslogik.
+
+Wird zum Beispiel garmin_typing.py verändert, kann sich der erzeugte
+Datensatz ändern. Snakemake soll die Pipeline deshalb auch in diesem
+Fall erneut ausführen.
+
+recursive=True ermöglicht die Suche auch in Unterordnern wie:
+src/running_data/cleaning/
+src/running_data/pipeline/
+src/running_data/ingest/
+'''
+
+python_files = glob("src/running_data/**/*.py", recursive=True)
+
+
+'''
 Gesamtziel des Workflows.
 
 "rule all" beschreibt, welche Dateien am Ende des Workflows vorhanden
@@ -41,9 +60,17 @@ rule all:
 Führt die bestehende Python-Pipeline aus.
 
 Input:
-Alle durch glob() gefundenen Garmin- und Apple-Rohdaten.
-Dadurch kennt Snakemake die konkreten Quelldateien und kann erkennen,
-wenn sich eine davon verändert.
+Alle durch glob() gefundenen Garmin- und Apple-Rohdaten sowie alle
+Python-Dateien der running_data-Pipeline.
+
+Dadurch kennt Snakemake sowohl die Quelldaten als auch die
+Verarbeitungslogik als Abhängigkeiten und kann erkennen, wenn sich
+eine davon verändert.
+
+Damit gilt:
+- Rohdaten geändert -> Pipeline erneut ausführen
+- Python-Code geändert -> Pipeline erneut ausführen
+- nichts geändert -> bestehende Outputs weiterverwenden
 
 Output:
 Der kombinierte Datensatz als CSV und Parquet.
@@ -57,7 +84,8 @@ einliest.
 rule running_pipeline:
     input:
         garmin=garmin_files,
-        apple=apple_files
+        apple=apple_files,
+        code=python_files
 
     output:
         csv="data/processed/combined_runs.csv",
