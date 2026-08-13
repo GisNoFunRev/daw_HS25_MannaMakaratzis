@@ -59,7 +59,12 @@ def _read_csv_with_fallback_encoding(file: str) -> pd.DataFrame | None:
     """
     for encoding in CANDIDATE_ENCODINGS:
         try:
-            df = pd.read_csv(file, sep=";", encoding=encoding)
+            df = pd.read_csv(
+                file,
+                sep=None,
+                engine="python",
+                encoding=encoding,
+            )
         except UnicodeDecodeError:
             continue
         logger.info("Garmin: %s mit Encoding %s gelesen", file, encoding)

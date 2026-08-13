@@ -5,3 +5,4 @@ lxml==6.0.2
 # War bisher nur lokal installiert und fehlte hier - ein frisches
 # "pip install -r requirements.txt" brach dadurch beim Export ab.
 pyarrow==22.0.0
+snakemake==9.25.1
