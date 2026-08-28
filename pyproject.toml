@@ -21,6 +21,7 @@ dependencies = [
     "numpy>=2.3",
     "lxml>=6.0",
     "pyarrow>=22.0",
+    "snakemake>=9.25",
 ]
 
 # Entwicklungswerkzeuge. Spiegelt requirements-dev.txt, analog zum Verhältnis

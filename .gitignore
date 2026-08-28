@@ -213,3 +213,6 @@ __marimo__/
 
 # Data directory
 data/
+
+# Snakemake working files and logs
+.snakemake/

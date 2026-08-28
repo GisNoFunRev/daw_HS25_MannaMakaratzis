@@ -139,11 +139,12 @@ def clean_garmin_typing(df: pd.DataFrame) -> pd.DataFrame:
 
     df["export_date"] = pd.to_datetime(df["export_date"], errors="coerce")
 
-    # Garmin dates use the European DD.MM.YYYY format.
-    # Parse explicitly to prevent pandas from swapping day and month or producing NaT.
+    # Garmin exports may use different date formats depending on the export version.
+    # Parse mixed formats while keeping day-first interpretation for European dates.
     df["date"] = pd.to_datetime(
         df["date"],
-        format="%d.%m.%Y %H:%M",
+        format="mixed",
+        dayfirst=True,
         errors="coerce",
     )
     df["duration_sec"] = df["duration"].apply(convert_duration_to_seconds)
