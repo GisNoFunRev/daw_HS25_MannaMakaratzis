@@ -231,8 +231,7 @@ Zusätzlich erzeugt die Pipeline für jede Quelle einen `CleaningReport`. Dieser
 ├── data/
 │   ├── apple/
 │   │   └── <export-date>/
-│   │       ├── Export.xml
-│   │       └── workout-routes/
+│   │       └── Export.xml
 │   ├── garmin/
 │   │   └── <export-date>/
 │   │       └── Activities.csv
@@ -241,7 +240,6 @@ Zusätzlich erzeugt die Pipeline für jede Quelle einen `CleaningReport`. Dieser
 │       ├── combined_runs.csv
 │       └── combined_runs.parquet
 ├── notebooks/
-│   ├── data_wrangling.ipynb
 │   └── data_wrangling.qmd
 ├── src/
 │   └── running_data/
@@ -253,8 +251,7 @@ Zusätzlich erzeugt die Pipeline für jede Quelle einen `CleaningReport`. Dieser
 │       │   └── validators.py
 │       ├── ingest/
 │       │   ├── apple.py
-│       │   ├── garmin.py
-│       │   └── gpx.py
+│       │   └── garmin.py
 │       ├── pipeline/
 │       │   ├── core.py
 │       │   ├── factory.py
@@ -295,7 +292,6 @@ Zusätzlich erzeugt die Pipeline für jede Quelle einen `CleaningReport`. Dieser
 |---|---|
 | `ingest/garmin.py` | Import der Garmin-CSV-Exporte |
 | `ingest/apple.py` | Speicherarmer Import der Apple-Health-XML-Exporte |
-| `ingest/gpx.py` | Platzhalter für den noch nicht implementierten GPX-Import |
 | `cleaning/garmin_typing.py` | Garmin-Filterung, Schema-Reduktion, Typisierung und Einheitenharmonisierung |
 | `cleaning/apple_typing.py` | Apple-Filterung, Umbenennung, Typisierung und Einheitenharmonisierung |
 | `cleaning/validators.py` | Fachliche Plausibilitätsregeln |
@@ -407,7 +403,7 @@ python -m running_data --help
 | **Option** | **Bedeutung** |
 |---|---|
 | `-h`, `--help` | Zeigt die Hilfe mit den verfügbaren Optionen und Standardwerten an und beendet das Programm anschliessend. |
-| `--garmin MUSTER` | Überschreibt den Standardpfad für Garmin. `MUSTER` ist ein Dateipfad-Muster mit Platzhaltern. Beim Standard `data/garmin/*/Activities.csv` steht `*` für einen beliebigen Export-Unterordner, sodass mehrere passende Garmin-Exporte gefunden werden können. |
+| `--garmin MUSTER` | Überschreibt den Standardpfad für Garmin. `MUSTER` ist ein Dateipfad-Muster mit Wildcards. Beim Standard `data/garmin/*/Activities.csv` steht `*` für einen beliebigen Export-Unterordner, sodass mehrere passende Garmin-Exporte gefunden werden können. |
 | `--apple MUSTER` | Überschreibt den Standardpfad für Apple Health. Beim Standard `data/apple/*/Export.xml` steht `*` für einen beliebigen Export-Unterordner, sodass mehrere passende XML-Exporte gefunden werden können. |
 | `--output ORDNER` | Legt fest, in welchen Ordner `combined_runs.parquet` und `combined_runs.csv` geschrieben werden. Ohne Angabe wird `data/processed/` verwendet. |
 | `--dry-run` | Führt Import, Typisierung, Cleaning, Zusammenführung, Feature Engineering und Qualitätsauswertung vollständig aus, schreibt aber keine Ergebnisdateien. Nützlich zur Kontrolle, ob die Pipeline mit den angegebenen Daten erfolgreich läuft. |
@@ -545,9 +541,16 @@ Die Reproduzierbarkeit des Projekts hängt nicht von einem einzelnen Mechanismus
 - **Reproduzierbarer Export:** Parquet als massgebliches Datenprodukt und CSV als Kontrollkopie
 - **Git:** Code, Konfiguration und Testdaten werden versioniert, persönliche Rohdaten bleiben ausserhalb der Versionsverwaltung
 
+## Abgrenzung und bekannte Einschränkungen
+
+- Die Eingabe ist bewusst auf Garmin-CSV und Apple-Health-XML begrenzt. Routendateien gehören nicht zum Abgabeumfang.
+- Garmin und Apple erfassen keine eindeutig identischen Laufereignisse. Die harmonisierten Beobachtungen werden deshalb konkateniert; ein fachlich belastbarer ereignisbasierter Join ist mit den vorhandenen Daten nicht möglich.
+- Die synthetischen Testdaten prüfen Verarbeitung und Randfälle, sind aber kein Nachweis für die Repräsentativität realer Gesundheitsdaten.
+- Quellenabhängige Messunterschiede und die medianbasierte Kalorien-Imputation begrenzen die Vergleichbarkeit und müssen bei der Interpretation berücksichtigt werden.
+
 ## Daten und Datenschutz
 
-Die echten Garmin- und Apple-Health-Exporte enthalten personenbezogene Gesundheits- und Aktivitätsdaten. Diese Rohdaten werden deshalb nicht im Git-Repository versioniert und sollen insbesondere nicht in ein öffentlich zugängliches Repository gelangen.
+Die echten Garmin- und Apple-Health-Exporte enthalten personenbezogene Gesundheits- und Aktivitätsdaten. In der aktuellen Revision werden deshalb keine Dateien unter `data/` versioniert. Persönliche Rohdaten dürfen insbesondere nicht in ein öffentlich zugängliches Repository gelangen. Wenn eine solche Datei versehentlich committed wurde, muss zusätzlich zur Entfernung aus der aktuellen Revision die Git-Historie separat bereinigt werden.
 
 Die Tests verwenden bewusst kleine, erfundene Datensätze, die nur die technische Struktur der realen Exporte abbilden:
 

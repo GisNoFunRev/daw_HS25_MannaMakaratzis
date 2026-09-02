@@ -1,7 +1,7 @@
 """Tests der Garmin-Typisierung (running_data.cleaning.garmin_typing).
 
 Enthält den vom Bewertungsraster verlangten Regressionstest für den
-Datums-Parsing-Bug (TODO 1).
+Datums-Parsing-Bug.
 """
 
 import numpy as np
@@ -41,7 +41,7 @@ def _raw_garmin(dates: list[str]) -> pd.DataFrame:
 
 
 class TestDatumsRegression:
-    """Regressionstest zum Garmin-Datums-Bug (TODO 1).
+    """Regressionstest zum Garmin-Datums-Bug.
 
     Garmin liefert Datumswerte im europäischen Format TT.MM.JJJJ HH:MM.
     Ohne explizite Formatangabe interpretierte pandas sie als MM.TT.JJJJ.
@@ -59,7 +59,7 @@ class TestDatumsRegression:
     @pytest.mark.parametrize(
         "roh, jahr, monat, tag, stunde, minute",
         [
-            # Der dokumentierte Fall aus TODO 1: wurde zum 7. November.
+            # Der dokumentierte Regressionsfall: wurde zum 7. November.
             ("11.07.2025 16:58", 2025, 7, 11, 16, 58),
             # Zweiter dokumentierter Fall: wurde zum 7. April.
             ("04.07.2025 21:06", 2025, 7, 4, 21, 6),
@@ -218,7 +218,7 @@ class TestCleanGarminTyping:
         assert list(garmin_typed.columns) == CORE_COLUMNS
 
     def test_rohspalte_duration_verschwindet(self, garmin_typed):
-        """TODO 11: Die Dauer wird ausschliesslich über duration_sec geführt."""
+        """Die Dauer wird ausschliesslich über duration_sec geführt."""
         assert "duration" not in garmin_typed.columns
         assert "duration_sec" in garmin_typed.columns
 

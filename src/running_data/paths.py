@@ -31,9 +31,6 @@ GARMIN_GLOB: str = str(DATA_DIR / "garmin" / "*" / "Activities.csv")
 # Apple-Health-Export: ein grosses XML je Exportdatum.
 APPLE_GLOB: str = str(DATA_DIR / "apple" / "*" / "Export.xml")
 
-# GPS-Spuren der Apple-Workouts, eine GPX-Datei je Lauf.
-APPLE_ROUTES_GLOB: str = str(DATA_DIR / "apple" / "*" / "workout-routes" / "*.gpx")
-
 # --- Ausgabedaten -----------------------------------------------------------
 # Zielordner für den kombinierten, bereinigten Datensatz.
 PROCESSED_DIR: Path = DATA_DIR / "processed"

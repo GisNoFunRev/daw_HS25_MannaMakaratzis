@@ -21,7 +21,7 @@ paths
 logging_setup
     Einrichtung des Loggings — vom Notebook aufzurufen, nicht von Modulen.
 ingest
-    Rohdaten-Import je Quelle (Garmin CSV, Apple XML, GPX).
+    Rohdaten-Import je Quelle (Garmin CSV und Apple XML).
 cleaning
     Typisierung, Validatoren, Imputation und die Bereinigungsschritte.
 pipeline
