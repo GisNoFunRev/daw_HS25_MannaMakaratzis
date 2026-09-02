@@ -104,7 +104,7 @@ class TestSchemaNachGesamtpipeline:
         assert len(set(ergebnis.data.columns)) == len(ergebnis.data.columns)
 
     def test_rohspalte_duration_ist_verschwunden(self, ergebnis):
-        """TODO 11: Die Dauer wird nur noch über duration_sec geführt."""
+        """Die Dauer wird nur noch über duration_sec geführt."""
         assert "duration" not in ergebnis.data.columns
 
     def test_abgeleitete_variablen_sind_enthalten(self, ergebnis):

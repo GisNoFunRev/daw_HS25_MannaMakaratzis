@@ -1,14 +1,10 @@
 # Dokumentation
 
-Platzhalter für die projektbegleitende Dokumentation.
+Die aktuell versionierte Projektdokumentation besteht aus:
 
-Die inhaltliche Beschreibung der Datenaufbereitung — Quellen, Annahmen,
-Bereinigungsregeln und deren Begründung — steht bewusst weiterhin als
-Markdown-Prosa direkt im Notebook `notebooks/data_wrangling.qmd`, weil sie
-dort unmittelbar neben dem jeweiligen Verarbeitungsschritt steht.
+- der [Projektübersicht und Ausführungsanleitung](../README.md),
+- dem kanonischen [Quarto-Notebook](../notebooks/data_wrangling.qmd) und
+- der [Dokumentation der Testsuite](../tests/README.md).
 
-Vorgesehen für diesen Ordner:
-
-- gerendertes Notebook (HTML-Ausgabe von `quarto render`)
-- Data Dictionary des kombinierten Datensatzes
-- Abgabeunterlagen
+Quellen, Annahmen, Bereinigungsregeln und ihre Begründung stehen im
+Quarto-Notebook unmittelbar neben den jeweiligen Verarbeitungsschritten.

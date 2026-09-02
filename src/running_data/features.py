@@ -28,13 +28,6 @@ enthalten sind.
 Die intern verwendeten Herzfrequenz-Quantile dienen ausschliesslich der
 Kalorien-Imputation und werden deshalb nicht als Trainingsfeatures
 interpretiert oder im finalen Datensatz gespeichert.
-
-
-Weitere geplante Transformationen
----------------------------------
-Reskalierung (Standard/MinMax/Yeo-Johnson), Reshape zwischen Lang- und
-Breitformat sowie Zeitreihenfunktionen wie ein gleitender Mittelwert der Pace
-gehören zu TODO 7 und sind nicht Teil dieses Feature-Engineering-Schritts.
 """
 
 
