@@ -231,8 +231,7 @@ Zusätzlich erzeugt die Pipeline für jede Quelle einen `CleaningReport`. Dieser
 ├── data/
 │   ├── apple/
 │   │   └── <export-date>/
-│   │       ├── Export.xml
-│   │       └── workout-routes/
+│   │       └── Export.xml
 │   ├── garmin/
 │   │   └── <export-date>/
 │   │       └── Activities.csv
@@ -253,8 +252,7 @@ Zusätzlich erzeugt die Pipeline für jede Quelle einen `CleaningReport`. Dieser
 │       │   └── validators.py
 │       ├── ingest/
 │       │   ├── apple.py
-│       │   ├── garmin.py
-│       │   └── gpx.py
+│       │   └── garmin.py
 │       ├── pipeline/
 │       │   ├── core.py
 │       │   ├── factory.py
@@ -295,7 +293,6 @@ Zusätzlich erzeugt die Pipeline für jede Quelle einen `CleaningReport`. Dieser
 |---|---|
 | `ingest/garmin.py` | Import der Garmin-CSV-Exporte |
 | `ingest/apple.py` | Speicherarmer Import der Apple-Health-XML-Exporte |
-| `ingest/gpx.py` | Platzhalter für den noch nicht implementierten GPX-Import |
 | `cleaning/garmin_typing.py` | Garmin-Filterung, Schema-Reduktion, Typisierung und Einheitenharmonisierung |
 | `cleaning/apple_typing.py` | Apple-Filterung, Umbenennung, Typisierung und Einheitenharmonisierung |
 | `cleaning/validators.py` | Fachliche Plausibilitätsregeln |
