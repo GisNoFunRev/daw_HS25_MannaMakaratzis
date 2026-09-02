@@ -214,5 +214,13 @@ __marimo__/
 # Data directory
 data/
 
+# Claude
+CLAUDE.md
+.claude/
+
 # Snakemake working files and logs
 .snakemake/
+
+# Status files
+SUMMARY.md
+TODO.md
