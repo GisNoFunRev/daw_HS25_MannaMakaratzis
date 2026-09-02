@@ -45,13 +45,14 @@ class CleaningReport:
             **kwargs: Zusätzliche Kennzahlen, die im Bericht mitgeführt werden.
         """
         removed = rows_before - rows_after
+        removal_rate = removed / rows_before if rows_before > 0 else 0.0
         self.steps.append(
             {
                 "step": step_name,
                 "rows_before": rows_before,
                 "rows_after": rows_after,
                 "removed": removed,
-                "removal_rate": removed / rows_before if rows_before > 0 else 0,
+                "removal_rate": removal_rate,
                 **kwargs,
             }
         )
@@ -62,7 +63,7 @@ class CleaningReport:
             rows_before,
             rows_after,
             removed,
-            removed / rows_before * 100,
+            removal_rate * 100,
         )
 
     def to_dataframe(self) -> pd.DataFrame:

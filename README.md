@@ -520,11 +520,7 @@ Damit werden unterschiedliche Garmin-Exportformate unterstützt und europäische
 
 ### Dokumentierter Randfall: leere Eingabe
 
-Für eine vollständig leere Eingabe existiert aktuell ein mit `xfail(strict=True)` markierter Test.
-
-**Issue:** `CleaningReport.add_step()` berechnet die gespeicherte `removal_rate` bereits sicher für `rows_before == 0`. In der anschliessenden Log-Ausgabe wird jedoch nochmals `removed / rows_before * 100` ohne dieselbe Absicherung berechnet. Bei einer leeren Eingabe entsteht deshalb ein `ZeroDivisionError`, bevor die eigentlich vorgesehene verständliche Fehlermeldung des kritischen Pipeline-Schritts erreicht wird.
-
-**Aktueller Umgang:** Der Fehler ist als bekannter Randfall explizit im Test festgehalten und wird nicht versteckt. Die normale Gesamtpipeline umgeht ihn: `run_pipeline()` überspringt leere Einzelquellen und löst einen klaren `ValueError` aus, wenn weder Garmin noch Apple Laufaktivitäten liefern. Der `xfail` dokumentiert damit eine noch offene Schwachstelle der generischen Pipeline-Mechanik, ohne den produktiven Standardaufruf zu blockieren.
+`CleaningReport.add_step()` behandelt `rows_before == 0` mit einer Entfernungsrate von `0.0`, sodass auch die Log-Ausgabe ohne Division durch null funktioniert. Liefert ein kritischer Pipeline-Schritt keine Zeilen, erreicht die Ausführung dadurch die vorgesehene verständliche `ValueError`-Meldung. Ein normaler Regressionstest deckt diesen Ablauf ab.
 
 ## Reproduzierbarkeit
 
