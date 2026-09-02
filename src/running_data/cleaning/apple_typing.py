@@ -36,9 +36,6 @@ DURATION_MINUTES_MEDIAN_RANGE = (10, 200)
 # Ab diesem Wert wird die Distanz als in Metern angegeben interpretiert.
 METERS_HEURISTIC_THRESHOLD = 200
 
-# Zielformat des Zeitstempels, abgestimmt auf die Garmin-Daten.
-DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-
 
 def filter_running(df: pd.DataFrame) -> pd.DataFrame:
     """Beschränkt den Datensatz auf Laufaktivitäten.
@@ -80,6 +77,16 @@ def _harmonize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _parse_local_timestamp(value: object) -> pd.Timestamp:
+    """Parst einen Apple-Zeitstempel und bewahrt seine lokale Uhrzeit."""
+    timestamp = pd.to_datetime(value, format="mixed", errors="coerce")
+    if pd.isna(timestamp):
+        return pd.NaT
+    if timestamp.tzinfo is not None:
+        timestamp = timestamp.tz_localize(None)
+    return timestamp
+
+
 def _normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     """Bringt die Zeitstempel auf dieselbe Darstellung wie bei Garmin.
 
@@ -88,18 +95,14 @@ def _normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     fachlich relevante Grösse — ein Lauf um 7 Uhr morgens bleibt ein Lauf um
     7 Uhr morgens, unabhängig davon, in welcher Zeitzone er stattfand.
     """
-    df["date"] = pd.to_datetime(df.get("date"), errors="coerce")
-
-    mask = df["date"].notna() & df["date"].apply(
-        lambda x: getattr(x, "tzinfo", None) is not None
+    raw_dates = df.get(
+        "date", pd.Series(pd.NaT, index=df.index, dtype="datetime64[ns]")
     )
-    if mask.any():
-        df.loc[mask, "date"] = df.loc[mask, "date"].dt.tz_localize(None)
-
-    # Nach dem teilweisen Ersetzen oben kann die Spalte den Typ object
-    # angenommen haben - erneut sicher nach datetime64[ns] konvertieren.
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df["date"] = df["date"].dt.strftime(DATE_FORMAT)
+    df["date"] = pd.Series(
+        [_parse_local_timestamp(value) for value in raw_dates],
+        index=df.index,
+        dtype="datetime64[ns]",
+    )
 
     df["export_date"] = pd.to_datetime(df.get("export_date"), errors="coerce")
     return df

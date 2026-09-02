@@ -75,7 +75,7 @@ Die Apple-Aufbereitung führt folgende Schritte aus:
 
 1. Es werden nur Aktivitäten behalten, deren `activity_type` `running` enthält.
 2. Die neutralen Importspalten werden auf das gemeinsame Schema umbenannt: `distance` wird zu `distance_km` und `duration` zu `duration_sec`, sofern die Zielspalten noch nicht vorhanden sind.
-3. `date` wird als Zeitstempel interpretiert. Vorhandene Zeitzonen-Offsets werden entfernt, ohne die Ortszeit des Laufs zu verschieben. Anschliessend wird der Zeitstempel einheitlich formatiert.
+3. `date` wird als Zeitstempel interpretiert. Vorhandene Zeitzonen-Offsets werden entfernt, ohne die Ortszeit des Laufs zu verschieben. Gemischte Offsets sowie Werte mit und ohne Offset werden einzeln verarbeitet; das Ergebnis hat einheitlich den Typ `datetime64[ns]`.
 4. `export_date` wird in einen Datumswert umgewandelt.
 5. Die numerischen Kernvariablen werden numerisch typisiert. Fehlt eine erwartete numerische Spalte, wird sie mit `NaN` ergänzt.
 6. Falls die mediane Dauer im für Minuten typischen Bereich liegt, wird `duration_sec` von Minuten in Sekunden umgerechnet.
@@ -541,6 +541,7 @@ Die Reproduzierbarkeit des Projekts hängt nicht von einem einzelnen Mechanismus
 
 - Die Eingabe ist bewusst auf Garmin-CSV und Apple-Health-XML begrenzt. Routendateien gehören nicht zum Abgabeumfang.
 - Garmin und Apple erfassen keine eindeutig identischen Laufereignisse. Die harmonisierten Beobachtungen werden deshalb konkateniert; ein fachlich belastbarer ereignisbasierter Join ist mit den vorhandenen Daten nicht möglich.
+- Apple-Zeitstempel bewahren die lokale Uhrzeit, verwerfen aber den Zeitzonen-Offset. Sie beschreiben damit lokale Laufzeiten und keine global vergleichbaren UTC-Zeitpunkte.
 - Die synthetischen Testdaten prüfen Verarbeitung und Randfälle, sind aber kein Nachweis für die Repräsentativität realer Gesundheitsdaten.
 - Quellenabhängige Messunterschiede und die medianbasierte Kalorien-Imputation begrenzen die Vergleichbarkeit und müssen bei der Interpretation berücksichtigt werden.
 
