@@ -1,21 +1,31 @@
 ---
 title: Data Wrangler
+format:
+  html:
+    embed-resources: true
 jupyter: python3
 ---
 
 
 ## 1. Setup
 
-Die gesamte Verarbeitungslogik liegt im Paket `running_data` unter `src/`.
-Dieses Notebook ist der Aufruf-Layer: Es ruft die Module in der fachlich
-richtigen Reihenfolge auf, dokumentiert die Entscheidungen und stellt die
-Ergebnisse dar. Es definiert selbst keine Verarbeitungslogik.
+Die gesamte Verarbeitungslogik liegt im modularen Paket `running_data` unter `src/`.
+Dieses Quarto-Notebook dient als Aufruf- und Dokumentations-Layer: Es ruft die
+Module in der fachlich begründeten Reihenfolge auf, erläutert getroffene
+Entscheidungen und visualisiert die Ergebnisse. Es definiert selbst keine
+Verarbeitungslogik.
 
-Voraussetzung ist eine einmalige Installation des Pakets aus dem
-Projektwurzelverzeichnis:
+### Systemvoraussetzungen
+- Python 3.11 (verifiziert mit Python 3.11.9 im virtuellen Environment `.venv`)
+- Quarto CLI >= 1.6 (verifiziert mit Quarto 1.6.42)
+
+### Installation
+Die einmalige Einrichtung erfolgt aus dem Projektwurzelverzeichnis:
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
 pip install -e .
 ```
 
@@ -552,3 +562,78 @@ Mit abweichenden Pfaden oder ohne zu schreiben:
 python -m running_data --output ergebnisse/
 python -m running_data --dry-run
 ```
+
+## 8. Ergebnisse
+
+Nach vollständiger Ausführung der Pipeline liegt ein harmonisierter und qualitätsgeprüfter Gesamtdatensatz vor.
+
+### 8.1 Zusammenfassung des bereinigten Datensatzes
+
+```{python}
+final_df = combined_featured
+
+print("=" * 60)
+print("FINALE DATENSATZ-STRUKTUR")
+print("=" * 60)
+print(f"Gesamtzeilen:  {len(final_df)}")
+print(f"Spaltenanzahl: {final_df.shape[1]}")
+print(f"Quellen:       {dict(final_df['source'].value_counts())}")
+print(
+    f"Datumsbereich: {final_df['date'].min().strftime('%Y-%m-%d')} bis "
+    f"{final_df['date'].max().strftime('%Y-%m-%d')}"
+)
+print("=" * 60)
+```
+
+#### Fehlende Werte und Typenkonsistenz
+
+In den fachlichen Analysevariablen dürfen nach der Bereinigung und Imputation keine fehlenden Werte mehr auftreten.
+
+```{python}
+missing_counts = final_df.isna().sum()
+if (missing_counts > 0).any():
+    print("Fehlende Werte je Spalte:")
+    print(missing_counts[missing_counts > 0])
+else:
+    print("Keine fehlenden Werte in den bereinigten Spalten.")
+```
+
+#### Messwerte-Verteilung nach Quelle
+
+```{python}
+summary_by_source = final_df.groupby("source", observed=False)[
+    ["distance_km", "duration_min", "pace_min_per_km", "calories", "avg_heart_rate"]
+].agg(["count", "median", "mean", "std"])
+summary_by_source
+```
+
+#### Interpretation des Gesamtergebnisses
+
+Der finale Gesamtdatensatz umfasst 42 validierte Läufe (13 Garmin- und 29 Apple-Health-Aktivitäten) mit 13 harmonisierten Attributen. Bei Garmin blieben 100% der erfassten Läufe erhalten, während bei Apple unvollständige Rohaufzeichnungen in den Validierungsschritten bereinigt wurden. Sämtliche Analysevariablen weisen nach der vierstufigen Imputation eine Vollständigkeit von 100% auf, womit der Datensatz konsistent für sportwissenschaftliche oder statistische Auswertungen bereitsteht.
+
+## 9. Limitationen
+
+Die implementierte Data-Wrangling-Pipeline liefert ein reproduzierbares, konsistentes Gesamtergebnis, unterliegt jedoch folgenden fachlichen und methodischen Limitationen:
+
+1. **Einfache Median-Imputation:** Die vierstufige Kalorien-Imputation schätzt fehlende Werte über hierarchische Gruppenmediane. Dieses Verfahren erhält den Median der Verteilung, unterschätzt jedoch die individuelle physiologische Streuung (Varianzverkürzung) und berücksichtigt keine personenspezifischen Faktoren wie Körpergewicht oder Trainingszustand.
+2. **Heuristische Fallbacks bei fehlenden XML-Metadaten:** Apple-Health-Workouts ohne deklarierte Einheitenattribute werden über Schwellenwerte normalisiert (beispielsweise Mediane im Bereich 15 bis 90 Minuten für Minutenangaben). Bei extremen Ausreissern (beispielsweise Ultramarathons) könnten solche Heuristiken fehlschlagen.
+3. **Sensor- und Messunterschiede:** Apple Health misst die Herzfrequenz standardmässig photoplethysmographisch am Handgelenk, während Garmin-Läufe häufig zusätzlich mit Brustgurten (EKG-genau) aufgezeichnet werden. Systematische Messdifferenzen zwischen den Sensorsystemen bleiben im zusammengeführten Datensatz als gerätespezifisches Rauschen erhalten.
+4. **Feste physiologische Grenzwerte:** Die definierten Plausibilitätsgrenzen (beispielsweise Maximalpuls 210 bpm, Mindestdistanz 50 m) orientieren sich an breitensportlichen Richtwerten. Bei Spitzenathleten oder Rekuperationsläufen können berechtigte Messwerte knapp ausserhalb der Filter liegen.
+5. **Datensatzumfang:** Die vorliegenden Daten decken eine begrenzte Anzahl Aktivitäten ab. Seltene Extrembedingungen (beispielsweise Höhentraining oder GPS-Tunnelschatten) sind in den Stichproben nicht vertreten.
+
+## 10. Fazit und Ausblick
+
+### Fazit
+Das Projektziel, einen bereinigten, harmonisierten und reproduzierbaren Gesamtdatensatz aus den zwei heterogenen Wearable-Ökosystemen Garmin Connect und Apple Health aufzubauen, wurde vollständig erreicht:
+- **LE1 (Import):** Streaming-XML-Parsing und strukturierte CSV-Ingestion garantieren speicherschonendes Einlesen ohne Datenverlust.
+- **LE2 (Bereinigung):** Acht sequenzielle Bereinigungsschritte filtern unphysiologische Werte, beseitigen Duplikate und imputieren fehlende Kalorienwerte nachvollziehbar mit Provenienz-Attributen.
+- **LE3 (Transformation):** Datums- und Einheitenharmonisierung (`duration_sec`, `distance_km`) sowie Herleitung relevanter Metriken (`pace_min_per_km`, `duration_min`).
+- **LE4 (Verknüpfung):** Fachlich begründete vertikale Zusammenführung (Konkatenation statt fehlerhafter Joins) bewahrt alle Beobachtungen.
+- **LE5 (Pipeline):** Das modulare Pipeline-Pattern trennt Framework, Schritt-Definitionen und Orchestrierung sauber voneinander und erlaubt die Ausführung als CLI oder via Snakemake.
+- **LE6 (Reproduzierbarkeit):** Pinned Dependencies, versionsverwaltete Qualitätsprüfungen und dualer Export (Parquet für Typtreue, CSV für Lesbarkeit) sichern die vollständige Nachvollziehbarkeit.
+
+### Ausblick
+Mögliche Erweiterungen für künftige Arbeiten:
+- Anbindung feingranularer Zeitreihendaten (Trackpoints aus GPX oder FIT) zur Analyse von Höhenmetern, Trittfrequenz und Steigungen.
+- Berücksichtigung individueller physiologischer Schwellenwerte (Laktatschwelle, maximale Herzfrequenz) zur Berechnung von Trainingszonen.
+- Multi-User-Erweiterung mit Anonymisierungs- und Mandanten-Trennung.
