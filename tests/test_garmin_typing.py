@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from running_data.config import CORE_COLUMNS, RAW_CORE_COLUMNS
 from running_data.cleaning.garmin_typing import (
     clean_garmin_typing,
     convert_duration_to_seconds,
     filter_running,
     reduce_to_core_columns,
 )
+from running_data.config import CORE_COLUMNS, RAW_CORE_COLUMNS
 
 
 def _raw_garmin(dates: list[str]) -> pd.DataFrame:
@@ -76,9 +76,9 @@ class TestDatumsRegression:
     ):
         ergebnis = clean_garmin_typing(_raw_garmin([roh]))["date"].iloc[0]
 
-        assert ergebnis == pd.Timestamp(jahr, monat, tag, stunde, minute), (
-            f"{roh!r} wurde zu {ergebnis} statt zum {tag}.{monat}.{jahr}"
-        )
+        assert ergebnis == pd.Timestamp(
+            jahr, monat, tag, stunde, minute
+        ), f"{roh!r} wurde zu {ergebnis} statt zum {tag}.{monat}.{jahr}"
 
     def test_gemischte_spalte_wie_im_echten_export(self):
         """Der eigentliche Regressionsfall — und der einzige vollständige.

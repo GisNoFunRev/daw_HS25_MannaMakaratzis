@@ -79,9 +79,7 @@ class TestWeitereDimensionen:
 
     def test_consistency_erkennt_widerspruch(self, make_runs, config):
         """max unter avg, ausserhalb der Rundungstoleranz."""
-        df = make_runs(
-            avg_heart_rate=[150.0, 150.0], max_heart_rate=[170.0, 100.0]
-        )
+        df = make_runs(avg_heart_rate=[150.0, 150.0], max_heart_rate=[170.0, 100.0])
 
         metriken = DataQualityChecker.assess_quality(df, config)
 

@@ -129,9 +129,9 @@ def impute_grouped_calories(
             dropna=False,
             observed=False,
         )["calories"].median(),
-        "level2": out.groupby(
-            ["source", "_dist_bin"], dropna=False, observed=False
-        )["calories"].median(),
+        "level2": out.groupby(["source", "_dist_bin"], dropna=False, observed=False)[
+            "calories"
+        ].median(),
         "level1": out.groupby(["source"], dropna=False, observed=False)[
             "calories"
         ].median(),

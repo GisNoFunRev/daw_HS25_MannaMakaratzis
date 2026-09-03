@@ -10,16 +10,16 @@ einem frischen Checkout ohne Rohdaten durchlaufen.
 
 import logging
 import warnings
+from dataclasses import FrozenInstanceError
 
 import pandas as pd
 import pytest
+from conftest import APPLE_FIXTURE_GLOB, GARMIN_FIXTURE_GLOB
 
 from running_data import DataCleaningConfig, PipelineResult, run_pipeline
 from running_data.__main__ import build_parser, main
 from running_data.export import read_processed
 from running_data.pipeline.factory import DEFAULT_CLEANING_STEPS
-
-from conftest import APPLE_FIXTURE_GLOB, GARMIN_FIXTURE_GLOB
 
 # Erwartete Zeilenzahlen der Fixtures: Garmin liefert 5 Aktivitäten, davon
 # sind 4 Läufe; Apple liefert 3 Workouts, davon 2 Läufe. Alle überstehen die
@@ -79,7 +79,7 @@ class TestErgebnis:
 
     def test_ergebnis_ist_unveraenderlich(self, ergebnis):
         """Ein eingefrorenes Ergebnis kann nachträglich nicht verfälscht werden."""
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             ergebnis.data = pd.DataFrame()
 
     def test_ist_ein_pipeline_result(self, ergebnis):
@@ -223,7 +223,9 @@ class TestKommandozeile:
         assert (tmp_path / "combined_runs.parquet").exists()
         assert "Geschrieben:" in capsys.readouterr().out
 
-    def test_ohne_daten_kein_traceback(self, tmp_path, capsys, logging_wiederherstellen):
+    def test_ohne_daten_kein_traceback(
+        self, tmp_path, capsys, logging_wiederherstellen
+    ):
         """Ein falscher Pfad ist ein Bedienfehler, kein Programmabsturz."""
         code = main(
             [

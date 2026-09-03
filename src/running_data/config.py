@@ -1,7 +1,8 @@
 """Zentrale Konfiguration der Datenbereinigung.
 
 Hier stehen sämtliche Schwellenwerte und Schema-Definitionen an einer Stelle.
-Fachliche Anpassungen erfolgen ausschliesslich hier und nicht verstreut im Verarbeitungscode.
+Fachliche Anpassungen erfolgen ausschliesslich hier und nicht verstreut im
+Verarbeitungscode.
 """
 
 
@@ -21,7 +22,7 @@ class DataCleaningConfig:
     # Obergrenze; oberhalb eines Ultramarathons als Gerätefehler behandelt.
     DISTANCE_MAX: float = 60
     # Klassengrenzen für die distanzbasierte Kalorien-Imputation.
-    DISTANCE_BINS: list[int] = [0, 5, 10, 15, 25, 50]
+    DISTANCE_BINS: tuple[int, ...] = (0, 5, 10, 15, 25, 50)
 
     # --- Dauer (Sekunden) ---------------------------------------------------
     DURATION_MIN: int = 60

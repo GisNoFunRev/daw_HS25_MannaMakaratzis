@@ -14,6 +14,7 @@ strukturgleich, ergibt die Konkatenation stillschweigend Spalten voller NaN.
 
 import pandas as pd
 import pytest
+from conftest import APPLE_FIXTURE_GLOB, GARMIN_FIXTURE_GLOB
 
 from running_data import run_pipeline
 from running_data.config import (
@@ -22,8 +23,6 @@ from running_data.config import (
     NUMERIC_COLUMNS,
     PROVENANCE_COLUMNS,
 )
-
-from conftest import APPLE_FIXTURE_GLOB, GARMIN_FIXTURE_GLOB
 
 # Von add_features ergänzte Spalten. Bewusst hier und nicht in der
 # Konfiguration: Der Test soll fehlschlagen, wenn sich das Ergebnisschema

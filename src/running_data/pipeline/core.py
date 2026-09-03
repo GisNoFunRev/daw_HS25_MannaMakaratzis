@@ -21,8 +21,8 @@ Jeder Schritt ist als kritisch oder unkritisch markiert:
   fehlender Kalorienwert macht einen Lauf nicht unbrauchbar.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import pandas as pd
 

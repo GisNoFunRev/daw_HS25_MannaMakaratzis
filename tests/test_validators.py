@@ -84,7 +84,9 @@ class TestValidatePace:
     )
     def test_untergrenze(self, make_runs, config, abweichung, erwartet):
         pace = config.PACE_MIN + abweichung
-        df = make_runs(distance_km=[10.0], duration_sec=[self._sekunden_fuer(pace, 10.0)])
+        df = make_runs(
+            distance_km=[10.0], duration_sec=[self._sekunden_fuer(pace, 10.0)]
+        )
 
         assert DataValidator.validate_pace(df, config).tolist() == [erwartet]
 
@@ -97,7 +99,9 @@ class TestValidatePace:
     )
     def test_obergrenze(self, make_runs, config, abweichung, erwartet):
         pace = config.PACE_MAX + abweichung
-        df = make_runs(distance_km=[10.0], duration_sec=[self._sekunden_fuer(pace, 10.0)])
+        df = make_runs(
+            distance_km=[10.0], duration_sec=[self._sekunden_fuer(pace, 10.0)]
+        )
 
         assert DataValidator.validate_pace(df, config).tolist() == [erwartet]
 
