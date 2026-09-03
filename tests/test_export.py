@@ -61,6 +61,7 @@ class TestWriteOutputs:
 class TestRoundtrip:
     """Schreiben und Wiedereinlesen muss verlustfrei sein."""
 
+    @pytest.mark.filterwarnings("error:Mismatched null-like values.*:FutureWarning")
     def test_parquet_liefert_denselben_datensatz(self, garmin_cleaned, tmp_path):
         write_outputs(garmin_cleaned, tmp_path)
 
@@ -77,6 +78,7 @@ class TestRoundtrip:
         assert gelesen["date"].dtype == "datetime64[ns]"
         assert gelesen["activity_type"].dtype == "category"
         assert gelesen["calories_imputed"].dtype == "bool"
+        assert isinstance(gelesen["imputation_level"].dtype, pd.StringDtype)
 
     def test_csv_verliert_die_datentypen(self, garmin_cleaned, tmp_path):
         """Festgehalten als bewusste Eigenschaft, nicht als Mangel.

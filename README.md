@@ -47,6 +47,7 @@ Die Verarbeitung erfolgt zunächst getrennt nach Datenquelle, weil Garmin und Ap
 - XML-Import mit `lxml.etree.iterparse`
 - Streaming-Verarbeitung statt Laden des gesamten XML-Baums
 - Auslesen verschachtelter `WorkoutStatistics`
+- Übernahme der zugehörigen Einheitenattribute für Dauer, Distanz, Energie und Herzfrequenz
 - Exportdatum wird aus der Ordnerstruktur übernommen
 
 Die Importmodule beschränken sich bewusst auf das Einlesen und die grundlegende Zuordnung der Rohdaten. Fachliche Bereinigung, Typisierung und Einheitenumrechnung erfolgen erst in den nachfolgenden Verarbeitungsschritten. Dadurch bleiben Import und Datenbereinigung klar voneinander getrennt.
@@ -75,13 +76,14 @@ Die Apple-Aufbereitung führt folgende Schritte aus:
 
 1. Es werden nur Aktivitäten behalten, deren `activity_type` `running` enthält.
 2. Die neutralen Importspalten werden auf das gemeinsame Schema umbenannt: `distance` wird zu `distance_km` und `duration` zu `duration_sec`, sofern die Zielspalten noch nicht vorhanden sind.
-3. `date` wird als Zeitstempel interpretiert. Vorhandene Zeitzonen-Offsets werden entfernt, ohne die Ortszeit des Laufs zu verschieben. Anschliessend wird der Zeitstempel einheitlich formatiert.
+3. `date` wird als Zeitstempel interpretiert. Vorhandene Zeitzonen-Offsets werden entfernt, ohne die Ortszeit des Laufs zu verschieben. Gemischte Offsets sowie Werte mit und ohne Offset werden einzeln verarbeitet; das Ergebnis hat einheitlich den Typ `datetime64[ns]`.
 4. `export_date` wird in einen Datumswert umgewandelt.
-5. Die numerischen Kernvariablen werden numerisch typisiert. Fehlt eine erwartete numerische Spalte, wird sie mit `NaN` ergänzt.
-6. Falls die mediane Dauer im für Minuten typischen Bereich liegt, wird `duration_sec` von Minuten in Sekunden umgerechnet.
-7. Falls Distanzwerte oberhalb der festgelegten Heuristik liegen, werden sie als Meter interpretiert und in Kilometer umgerechnet.
-8. `activity_type` und `source` werden als kategoriale Variablen typisiert.
-9. Fehlende Spalten aus `CORE_COLUMNS` werden ergänzt und der Datensatz wird auf die gemeinsame Spaltenreihenfolge gebracht.
+5. Die numerischen Kernvariablen werden als `float64` typisiert. Fehlt eine erwartete numerische Spalte, wird sie mit `NaN` ergänzt.
+6. Deklarierte Einheiten werden pro Workout explizit normalisiert: `km`, `m` und `mi` zu Kilometern; `min` und `s` zu Sekunden; `kcal` und `kJ` zu Kilokalorien; `count/min` und `bpm` zu bpm.
+7. Eine deklarierte, aber nicht unterstützte Einheit wird nicht heuristisch interpretiert. Die betroffenen Messwerte werden zu `NaN`, und eine Warnung nennt Einheit, Messgrösse und Anzahl betroffener Zeilen.
+8. Nur bei fehlender oder leerer Einheit greift die bisherige Rückwärtskompatibilität: Die mediane Dauer entscheidet zwischen Minuten und Sekunden, bei der Distanz kennzeichnet ein Wert über 200 die fehlend deklarierten Werte als Meter. Energie wird ohne Metadaten als Kilokalorien und Herzfrequenz als bpm behandelt.
+9. `activity_type` und `source` werden als kategoriale Variablen typisiert.
+10. Fehlende Spalten aus `CORE_COLUMNS` werden ergänzt und der Datensatz wird auf die gemeinsame Spaltenreihenfolge gebracht. Die Einheiten-Metadaten gehören nicht zum harmonisierten Zielschema.
 
 Nach diesem Schritt besitzen beide Quellen dieselben Kernvariablen in derselben Reihenfolge und mit harmonisierten Einheiten. Die Transformation umfasst damit nicht nur eine Umbenennung von Spalten, sondern auch Filterung, Datentypkonvertierung, Datumsverarbeitung und Einheitenumrechnung. Erst danach durchlaufen beide Quellen dieselbe Cleaning-Pipeline.
 
@@ -133,6 +135,8 @@ pace_min_per_km = duration_min / distance_km
 ```
 
 Die Pace beschreibt, wie viele Minuten durchschnittlich für einen Kilometer benötigt werden. Sie ist eine zentrale Kennzahl im Laufsport und macht Läufe unterschiedlicher Distanz direkt vergleichbar.
+
+`add_features()` arbeitet auf einer Kopie und bewahrt alle vorhandenen Spalten. Bei einer Distanz kleiner oder gleich null ist die Pace fachlich nicht definiert und wird deshalb als fehlender Wert statt als unendlicher Wert ausgegeben. Die normale Bereinigung entfernt solche Distanzen bereits vorher; diese Absicherung schützt zusätzlich direkte Aufrufe der öffentlichen Funktion.
 
 **Wichtig für Nicht-Läufer:** Bei der Pace bedeutet ein **kleinerer Wert ein höheres Lauftempo**. Eine Pace von `5.0 min/km` ist also schneller als `6.0 min/km`.
 
@@ -488,12 +492,14 @@ Die Tests greifen **nicht** auf persönliche Daten unter `data/` zu. Sie verwend
 - `make_runs` aus `tests/conftest.py`: synthetische DataFrames, mit denen einzelne Grenzfälle gezielt konstruiert werden
 - temporäre Verzeichnisse von `pytest` für Exporttests, damit `data/processed/` während der Tests nicht verändert wird
 
-Die Testsuite besteht aktuell aus **acht Testmodulen**:
+Die Testsuite besteht aktuell aus **zehn Testmodulen**:
 
 | **Testmodul** | **Abgedeckter Bereich** |
 |---|---|
 | `test_validators.py` | Die fünf Plausibilitätsregeln und ihre Grenzwerte für Distanz, Dauer, Pace und Herzfrequenz |
 | `test_garmin_typing.py` | Lauf-Filter, Reduktion auf das Rohschema, Dauerumrechnung, Distanz-Heuristik, Datentypen, gemeinsames Schema, Entfernung der Rohspalte `duration` und Regressionstest für den Garmin-Datumsfehler |
+| `test_apple_typing.py` | Lokale Zeitsemantik, gemischte Zeitzonen-Offsets, deklarierte und fehlende Einheiten, zeilenweise Umrechnung sowie Warnungen für nicht unterstützte Einheiten |
+| `test_features.py` | Dauer- und Pace-Formeln, unveränderte Eingabedaten, Erhalt bestehender Spalten und sichere Pace bei Nulldistanz |
 | `test_schema.py` | Gemeinsames Schema beider Quellen, Datentypen nach dem Cleaning, Pflichtfelder, finales Ergebnisschema, Features, Quellen, Zeilenzahl, chronologische Sortierung und dokumentiertes Kategorie-Verhalten nach `concat` |
 | `test_imputation.py` | Alle vier Ebenen der Kalorien-Fallback-Kette, Herkunftsspalten, Behandlung von Null- und Negativwerten, Distanzklassen, Entfernung interner Hilfsspalten und Hilfslogik für Winsorising |
 | `test_pipeline_core.py` | Reihenfolge und Verkettung von Schritten, `CleaningReport`, unveränderte Eingabe sowie Fehlerbehandlung kritischer und unkritischer Schritte |
@@ -520,11 +526,7 @@ Damit werden unterschiedliche Garmin-Exportformate unterstützt und europäische
 
 ### Dokumentierter Randfall: leere Eingabe
 
-Für eine vollständig leere Eingabe existiert aktuell ein mit `xfail(strict=True)` markierter Test.
-
-**Issue:** `CleaningReport.add_step()` berechnet die gespeicherte `removal_rate` bereits sicher für `rows_before == 0`. In der anschliessenden Log-Ausgabe wird jedoch nochmals `removed / rows_before * 100` ohne dieselbe Absicherung berechnet. Bei einer leeren Eingabe entsteht deshalb ein `ZeroDivisionError`, bevor die eigentlich vorgesehene verständliche Fehlermeldung des kritischen Pipeline-Schritts erreicht wird.
-
-**Aktueller Umgang:** Der Fehler ist als bekannter Randfall explizit im Test festgehalten und wird nicht versteckt. Die normale Gesamtpipeline umgeht ihn: `run_pipeline()` überspringt leere Einzelquellen und löst einen klaren `ValueError` aus, wenn weder Garmin noch Apple Laufaktivitäten liefern. Der `xfail` dokumentiert damit eine noch offene Schwachstelle der generischen Pipeline-Mechanik, ohne den produktiven Standardaufruf zu blockieren.
+`CleaningReport.add_step()` behandelt `rows_before == 0` mit einer Entfernungsrate von `0.0`, sodass auch die Log-Ausgabe ohne Division durch null funktioniert. Liefert ein kritischer Pipeline-Schritt keine Zeilen, erreicht die Ausführung dadurch die vorgesehene verständliche `ValueError`-Meldung. Ein normaler Regressionstest deckt diesen Ablauf ab.
 
 ## Reproduzierbarkeit
 
@@ -545,6 +547,8 @@ Die Reproduzierbarkeit des Projekts hängt nicht von einem einzelnen Mechanismus
 
 - Die Eingabe ist bewusst auf Garmin-CSV und Apple-Health-XML begrenzt. Routendateien gehören nicht zum Abgabeumfang.
 - Garmin und Apple erfassen keine eindeutig identischen Laufereignisse. Die harmonisierten Beobachtungen werden deshalb konkateniert; ein fachlich belastbarer ereignisbasierter Join ist mit den vorhandenen Daten nicht möglich.
+- Apple-Zeitstempel bewahren die lokale Uhrzeit, verwerfen aber den Zeitzonen-Offset. Sie beschreiben damit lokale Laufzeiten und keine global vergleichbaren UTC-Zeitpunkte.
+- Fehlen Apple-Einheitenattribute, bleiben Dauer und Distanz heuristisch: Der Median entscheidet über Minuten oder Sekunden, und ein hoher Distanzwert kann alle fehlend deklarierten Distanzwerte als Meter klassifizieren. Fehlende Energie- und Herzfrequenzeinheiten werden aus Rückwärtskompatibilität als Kilokalorien beziehungsweise bpm angenommen. Diese Fallbacks können die ursprüngliche Einheit nicht beweisen.
 - Die synthetischen Testdaten prüfen Verarbeitung und Randfälle, sind aber kein Nachweis für die Repräsentativität realer Gesundheitsdaten.
 - Quellenabhängige Messunterschiede und die medianbasierte Kalorien-Imputation begrenzen die Vergleichbarkeit und müssen bei der Interpretation berücksichtigt werden.
 
@@ -558,5 +562,3 @@ Die Tests verwenden bewusst kleine, erfundene Datensätze, die nur die technisch
 - `tests/fixtures/apple/2025-08-22/Export.xml`
 
 Zusätzlich erzeugt `make_runs` in `tests/conftest.py` synthetische Laufdatensätze für gezielte Testfälle. Dadurch kann das Projekt nach einem frischen Checkout getestet werden, ohne Zugriff auf persönliche Rohdaten zu benötigen.
-
-

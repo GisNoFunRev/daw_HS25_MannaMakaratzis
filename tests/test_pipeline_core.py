@@ -199,33 +199,12 @@ class TestUnkritischeSchritte:
         assert len(ergebnis) == 0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Bekannter Fehler in CleaningReport.add_step: Die Logzeile rechnet "
-        "removed / rows_before * 100 ohne die Absicherung, die zwei Zeilen "
-        "darueber fuer removal_rate getroffen wird. Ein leerer Datensatz "
-        "erzeugt dadurch ZeroDivisionError statt einer verstaendlichen "
-        "Meldung. Nicht im Rahmen dieser Aufgabe behoben; run_pipeline "
-        "umgeht den Fall, indem es leere Quellen ueberspringt."
-    ),
-)
 def test_leere_eingabe_ergibt_verstaendlichen_fehler(config):
-    """Was passieren sollte, wenn die Pipeline nichts zu tun bekommt.
-
-    Erwartet wird der ValueError aus der Leerprüfung des kritischen Schritts.
-    Tatsächlich kommt ZeroDivisionError, weil add_step schon vorher an der
-    Logzeile scheitert.
-
-    Der kritische Schritt ist hier entscheidend: Bei einem unkritischen
-    Schritt fängt die Pipeline die ZeroDivisionError ab und läuft weiter,
-    der Fehler bleibt dann unsichtbar (siehe test_leeres_ergebnis_ist_erlaubt).
-    Die Standardpipeline enthält mit "Validate Essentials" einen kritischen
-    Schritt, weshalb build_cleaning_pipeline auf einem leeren Datensatz
-    tatsächlich mit ZeroDivisionError abbricht.
-    """
+    """Ein leerer kritischer Schritt meldet den fachlichen Pipeline-Fehler."""
     pipeline = DataCleaningPipeline("Test", config)
     pipeline.add_step(_schritt("Kritisch", _unveraendert, kritisch=True))
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match="Critical step 'Kritisch' removed all data"
+    ):
         pipeline.run(pd.DataFrame({"a": []}))

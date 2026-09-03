@@ -30,16 +30,30 @@ Kalorien-Imputation und werden deshalb nicht als Trainingsfeatures
 interpretiert oder im finalen Datensatz gespeichert.
 """
 
-
 import pandas as pd
 
-def add_features(df: pd.DataFrame) -> pd.DataFrame:
 
+def add_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Ergänzt interpretierbare Dauer- und Pace-Variablen.
+
+    Args:
+        df: Bereinigter Laufdatensatz mit den numerischen Spalten
+            duration_sec und distance_km.
+
+    Returns:
+        Kopie des vollständigen Eingabedatensatzes mit duration_min in
+        Minuten und pace_min_per_km in Minuten pro Kilometer. Bei einer
+        Distanz kleiner oder gleich null bleibt die Pace fehlend, weil sie
+        fachlich nicht definiert ist.
+
+    Raises:
+        KeyError: Wenn duration_sec oder distance_km fehlt.
+    """
 
     out = df.copy()
 
-    out["duration_min"] = out["duration_sec"]/60
-    out["pace_min_per_km"] = out["duration_min"] / out["distance_km"]
+    out["duration_min"] = out["duration_sec"] / 60
+    valid_distance = out["distance_km"].where(out["distance_km"] > 0)
+    out["pace_min_per_km"] = out["duration_min"] / valid_distance
 
     return out
-

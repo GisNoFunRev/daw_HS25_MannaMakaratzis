@@ -52,7 +52,8 @@ class DataCleaningConfig:
 # --- Schema-Konstanten ------------------------------------------------------
 
 # Kernvariablen vor der Typisierung, wie sie direkt aus dem Import kommen.
-# Die Spalte "duration" ist hier noch Rohtext (Garmin: "hh:mm:ss", Apple: Minuten).
+# Die Spalte "duration" ist hier noch Rohtext (Garmin: "hh:mm:ss", Apple:
+# numerischer Wert mit separatem Einheitenattribut im Rohimport).
 RAW_CORE_COLUMNS: list[str] = [
     "date",
     "activity_type",

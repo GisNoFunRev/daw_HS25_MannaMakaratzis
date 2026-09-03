@@ -72,7 +72,7 @@ def _build_hr_bins_per_source(
     """
     hr_bin = pd.Series(np.nan, index=df.index, dtype="float")
 
-    for _, sub in df.groupby("source"):
+    for _, sub in df.groupby("source", observed=False):
         x = pd.to_numeric(sub[col], errors="coerce").dropna()
         n_unique = x.nunique()
 
@@ -124,13 +124,17 @@ def impute_grouped_calories(
 
     # Mediantabellen aller vier Ebenen einmalig vorberechnen.
     medians = {
-        "level3": out.groupby(["source", "_dist_bin", "_hr_bin"], dropna=False)[
+        "level3": out.groupby(
+            ["source", "_dist_bin", "_hr_bin"],
+            dropna=False,
+            observed=False,
+        )["calories"].median(),
+        "level2": out.groupby(
+            ["source", "_dist_bin"], dropna=False, observed=False
+        )["calories"].median(),
+        "level1": out.groupby(["source"], dropna=False, observed=False)[
             "calories"
         ].median(),
-        "level2": out.groupby(["source", "_dist_bin"], dropna=False)[
-            "calories"
-        ].median(),
-        "level1": out.groupby(["source"], dropna=False)["calories"].median(),
         "level0": out["calories"].median(),
     }
 
@@ -158,7 +162,7 @@ def impute_grouped_calories(
     result = out.apply(_fill_row, axis=1, result_type="expand")
     out["calories"] = result[0]
     out["calories_imputed"] = result[1]
-    out["imputation_level"] = result[2]
+    out["imputation_level"] = result[2].astype("string")
 
     if out["calories_imputed"].any():
         summary = out.loc[out["calories_imputed"], "imputation_level"].value_counts()

@@ -20,15 +20,8 @@ pip install -e .
 ```
 
 ```{python}
-import warnings
-
 import numpy as np
 import pandas as pd
-
-# Nur fuer die Notebook-Darstellung: unterdrueckt Warnungen, die die
-# Ausgabe unleserlich machen. Bewusst nicht im Paketcode - dort wuerden
-# damit auch echte Probleme verborgen.
-warnings.filterwarnings("ignore")
 
 from running_data import (
     DataCleaningConfig,
@@ -83,12 +76,12 @@ Herausforderungen:
 
 Lösung: Streaming-XML-Parser mit gezielter Extraktion der Kernvariablen aus
 zwei XML-Bereichen:
-  - Workout-Attribute: `activity_type`, `date`, `duration`, `source`, `export_date`
-  - WorkoutStatistics: `distance_m`, `calories`, `avg_heart_rate`, `max_heart_rate`
+  - Workout-Attribute: `activity_type`, `date`, `duration`, `duration_unit`, `source`, `export_date`
+  - WorkoutStatistics: `distance`, `distance_unit`, `calories`, `calories_unit`, `avg_heart_rate`, `max_heart_rate`, `heart_rate_unit`
 
-Das hält den Import ressourcenschonend, das Schema schlank und die Daten von
-Beginn an mit Garmin harmonisiert. Zusammenführung der beiden Quellen
-erfolgt erst nach der Bereinigung (Kapitel 4), nicht beim Import.
+Das hält den Import ressourcenschonend und bewahrt die für die spätere
+Harmonisierung nötigen Rohwerte samt Einheiten. Zusammengeführt werden die
+beiden Quellen erst nach der Bereinigung (Kapitel 4), nicht beim Import.
 
 ```{python}
 # Import ausfuehren (LE1 - roh). Die Funktion liegt in
@@ -365,9 +358,19 @@ print(apple_df["activity_type"].value_counts())
 
 #### 3.3.2 Typisierung und Einheiten
 
-Abweichend von Garmin: Dauer liegt in Minuten vor, Distanz und Kalorien
-stehen in `WorkoutStatistics`-Kindelementen statt direkt am Workout, und
-Zeitstempel tragen einen Zeitzonen-Offset, der entfernt wird.
+Abweichend von Garmin stehen Distanz, Kalorien und Herzfrequenz in
+`WorkoutStatistics`-Kindelementen statt direkt am Workout. Der Import bewahrt
+die zugehörigen Einheitenattribute. Deklarierte Werte werden pro Workout
+explizit umgerechnet: `km`, `m` und `mi` in Kilometer, `min` und `s` in
+Sekunden, `kcal` und `kJ` in Kilokalorien sowie `count/min` und `bpm` in bpm.
+Nicht unterstützte deklarierte Einheiten werden als fehlend markiert und mit
+Messgrösse, Einheit und Zeilenzahl protokolliert.
+
+Nur bei fehlender Einheit greifen die bisherigen Heuristiken für Dauer und
+Distanz. Energie wird dann als Kilokalorien und Herzfrequenz als bpm
+angenommen. Diese Rückwärtskompatibilitäts-Fallbacks können die ursprüngliche
+Einheit nicht beweisen. Zeitstempel tragen einen Zeitzonen-Offset, der ohne
+Verschiebung der lokalen Uhrzeit entfernt wird.
 
 ```{python}
 apple_df_typed = apple_typing.clean_apple_typing(apple_df)
@@ -455,7 +458,9 @@ Aus den bereinigten Messwerten lassen sich Kennzahlen ableiten, die für die
 Interpretation eines Laufs aussagekräftiger sind als die Rohwerte.
 `add_features` ergänzt `pace_min_per_km` und `duration_min` als sichtbare
 Spalten. Die Pace wurde zuvor bereits in den Validatoren berechnet, dort aber
-nur zur Plausibilitätsprüfung verwendet und anschliessend verworfen.
+nur zur Plausibilitätsprüfung verwendet und anschliessend verworfen. Die
+Funktion bewahrt alle bestehenden Spalten und gibt für eine nichtpositive
+Distanz eine fehlende statt einer unendlichen Pace zurück.
 
 ```{python}
 combined_featured = add_features(combined_no_dedupe)
