@@ -155,7 +155,10 @@ def step_clean_heart_rate(
 
     for col in ("avg_heart_rate", "max_heart_rate"):
         before_nan = df[col].isna().sum()
-        df[col] = df[col].fillna(df.groupby("source")[col].transform("median"))
+        source_medians = df.groupby("source", observed=False)[col].transform(
+            "median"
+        )
+        df[col] = df[col].fillna(source_medians)
         after_nan = df[col].isna().sum()
         logger.info(
             "%s: %d NaN → %d NaN (imputiert: %d)",
