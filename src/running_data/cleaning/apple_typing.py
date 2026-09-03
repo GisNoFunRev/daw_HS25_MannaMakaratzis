@@ -7,13 +7,15 @@ ausgleichen müssen.
 
 Einheitenkonventionen bei Apple Health
 --------------------------------------
-* Dauer numerisch, üblicherweise in Minuten (Garmin: Text hh:mm:ss).
-* Distanz je nach Gerät in Kilometern oder Metern.
+* Dauer numerisch in Minuten oder Sekunden (Garmin: Text hh:mm:ss).
+* Distanz je nach Gerät in Kilometern, Metern oder Meilen.
+* Energie in Kilokalorien oder Kilojoule.
+* Herzfrequenz in count/min oder bpm.
 * Zeitstempel mit Zeitzonen-Offset (Garmin: ohne).
 
-Die Einheiten sind im Export nicht deklariert, weshalb sie über Heuristiken
-erkannt werden. Beide sind bewusst konservativ gewählt, sodass sie nur
-anschlagen, wenn die Alternative physikalisch unmöglich wäre.
+Deklarierte Einheiten werden pro Workout explizit umgerechnet. Nur wenn das
+XML keine Einheit enthält, greifen die konservativen Dauer- und
+Distanzheuristiken als Rückwärtskompatibilitäts-Fallback.
 """
 
 import numpy as np
@@ -35,6 +37,15 @@ DURATION_MINUTES_MEDIAN_RANGE = (10, 200)
 
 # Ab diesem Wert wird die Distanz als in Metern angegeben interpretiert.
 METERS_HEURISTIC_THRESHOLD = 200
+
+DISTANCE_FACTORS_TO_KM: dict[str, float] = {
+    "km": 1.0,
+    "m": 0.001,
+    "mi": 1.609344,
+}
+DURATION_FACTORS_TO_SECONDS: dict[str, float] = {"min": 60.0, "s": 1.0}
+CALORIES_FACTORS_TO_KCAL: dict[str, float] = {"kcal": 1.0, "kj": 1 / 4.184}
+HEART_RATE_FACTORS_TO_BPM: dict[str, float] = {"count/min": 1.0, "bpm": 1.0}
 
 
 def filter_running(df: pd.DataFrame) -> pd.DataFrame:
@@ -108,16 +119,92 @@ def _normalize_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _normalize_declared_units(
+    df: pd.DataFrame,
+    value_columns: list[str],
+    unit_column: str,
+    factors: dict[str, float],
+    quantity: str,
+) -> pd.Series:
+    """Rechnet deklarierte Einheiten um und meldet unsichere Deklarationen."""
+    if unit_column in df.columns:
+        display_units = df[unit_column].astype("string").str.strip()
+    else:
+        display_units = pd.Series("", index=df.index, dtype="string")
+
+    normalized_units = display_units.str.casefold()
+    missing_units = display_units.isna() | display_units.eq("")
+
+    for unit, factor in factors.items():
+        unit_rows = normalized_units.eq(unit).fillna(False)
+        for column in value_columns:
+            df.loc[unit_rows, column] = df.loc[unit_rows, column] * factor
+
+    declared_units = ~missing_units
+    supported_units = normalized_units.isin(factors)
+    unsupported_rows = declared_units & ~supported_units
+
+    for unit in display_units.loc[unsupported_rows].dropna().unique():
+        unit_rows = unsupported_rows & display_units.eq(unit).fillna(False)
+        affected_rows = int(unit_rows.sum())
+        for column in value_columns:
+            df.loc[unit_rows, column] = np.nan
+        logger.warning(
+            "Apple: Einheit '%s' für %s nicht unterstützt; "
+            "%d Zeile(n) auf NaN gesetzt",
+            unit,
+            quantity,
+            affected_rows,
+        )
+
+    return missing_units
+
+
 def _normalize_units(df: pd.DataFrame) -> pd.DataFrame:
-    """Erkennt und korrigiert abweichende Einheiten bei Dauer und Distanz."""
-    median_duration = df["duration_sec"].median()
+    """Normalisiert deklarierte Einheiten und nutzt Heuristiken als Fallback."""
+    distance_fallback_rows = _normalize_declared_units(
+        df,
+        ["distance_km"],
+        "distance_unit",
+        DISTANCE_FACTORS_TO_KM,
+        "distance",
+    )
+    duration_fallback_rows = _normalize_declared_units(
+        df,
+        ["duration_sec"],
+        "duration_unit",
+        DURATION_FACTORS_TO_SECONDS,
+        "duration",
+    )
+    _normalize_declared_units(
+        df,
+        ["calories"],
+        "calories_unit",
+        CALORIES_FACTORS_TO_KCAL,
+        "calories",
+    )
+    _normalize_declared_units(
+        df,
+        ["avg_heart_rate", "max_heart_rate"],
+        "heart_rate_unit",
+        HEART_RATE_FACTORS_TO_BPM,
+        "heart_rate",
+    )
+
+    fallback_durations = df.loc[duration_fallback_rows, "duration_sec"]
+    median_duration = fallback_durations.median()
     lower, upper = DURATION_MINUTES_MEDIAN_RANGE
     if pd.notna(median_duration) and lower <= median_duration <= upper:
-        df["duration_sec"] = df["duration_sec"] * 60
+        df.loc[duration_fallback_rows, "duration_sec"] = (
+            fallback_durations * DURATION_FACTORS_TO_SECONDS["min"]
+        )
         logger.info("Apple: duration_sec war in MINUTEN → in Sekunden umgerechnet (×60)")
 
-    if (df["distance_km"] > METERS_HEURISTIC_THRESHOLD).any():
-        df["distance_km"] = df["distance_km"] / 1000.0
+    fallback_distances = df.loc[distance_fallback_rows, "distance_km"]
+    if (fallback_distances > METERS_HEURISTIC_THRESHOLD).any():
+        df.loc[distance_fallback_rows, "distance_km"] = (
+            fallback_distances * DISTANCE_FACTORS_TO_KM["m"]
+        )
         logger.info("Apple: distance_km war in METERN → in Kilometer umgerechnet (/1000)")
 
     return df
@@ -129,8 +216,9 @@ def clean_apple_typing(df: pd.DataFrame) -> pd.DataFrame:
     Args:
         df: Gefilterte Apple-Workouts mit den neutralen Importspalten
             date, activity_type, distance, duration,
-            calories, avg_heart_rate, max_heart_rate, source
-            und export_date.
+            calories, avg_heart_rate, max_heart_rate, source und export_date.
+            Die optionalen Spalten duration_unit, distance_unit,
+            calories_unit und heart_rate_unit enthalten deklarierte Einheiten.
 
     Returns:
         Datensatz mit exakt den Spalten aus
@@ -144,7 +232,7 @@ def clean_apple_typing(df: pd.DataFrame) -> pd.DataFrame:
     # Numerik casten, bevor die Einheiten-Heuristiken rechnen.
     for col in NUMERIC_COLUMNS:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
         else:
             df[col] = np.nan
 

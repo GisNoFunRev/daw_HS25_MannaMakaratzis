@@ -70,13 +70,16 @@ def _extract_workout(elem: etree._Element, export_date: str) -> dict[str, Any]:
             ACTIVITY_TYPE_PREFIX, ""
         ),
         "date": elem.get("startDate", ""),
-        # Einheit bleibt roh (Apple liefert die Dauer üblicherweise in Minuten).
         "duration": elem.get("duration", ""),
+        "duration_unit": elem.get("durationUnit", ""),
         # Werden aus den WorkoutStatistics unten gefüllt.
         "distance": "",
+        "distance_unit": "",
         "calories": "",
+        "calories_unit": "",
         "avg_heart_rate": "",
         "max_heart_rate": "",
+        "heart_rate_unit": "",
     }
 
     for stats_elem in elem.findall("WorkoutStatistics"):
@@ -84,11 +87,14 @@ def _extract_workout(elem: etree._Element, export_date: str) -> dict[str, Any]:
 
         if stats_type in DISTANCE_STATISTIC_TYPES:
             workout["distance"] = stats_elem.get("sum", "")
+            workout["distance_unit"] = stats_elem.get("unit", "")
         elif stats_type == CALORIES_STATISTIC_TYPE:
             workout["calories"] = stats_elem.get("sum", "")
+            workout["calories_unit"] = stats_elem.get("unit", "")
         elif stats_type == HEART_RATE_STATISTIC_TYPE:
             workout["avg_heart_rate"] = stats_elem.get("average", "")
             workout["max_heart_rate"] = stats_elem.get("maximum", "")
+            workout["heart_rate_unit"] = stats_elem.get("unit", "")
 
     return workout
 
@@ -124,8 +130,9 @@ def import_apple_workouts(xml_path: str = APPLE_GLOB) -> pd.DataFrame:
     Returns:
         Alle Workouts aller Exporte in einem DataFrame mit den Rohspalten
         source, export_date, activity_type, date,
-        duration, distance, calories, avg_heart_rate und
-        max_heart_rate. Leerer DataFrame, wenn keine Datei gefunden wurde.
+        duration, duration_unit, distance, distance_unit, calories,
+        calories_unit, avg_heart_rate, max_heart_rate und heart_rate_unit.
+        Leerer DataFrame, wenn keine Datei gefunden wurde.
     """
     xml_files = glob.glob(xml_path)
     apple_workouts: list[dict[str, Any]] = []

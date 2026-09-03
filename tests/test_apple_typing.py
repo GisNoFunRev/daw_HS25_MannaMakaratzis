@@ -179,6 +179,36 @@ class TestAppleEinheiten:
         assert result.loc[0, "avg_heart_rate"] == pytest.approx(150.0)
         assert result.loc[0, "max_heart_rate"] == pytest.approx(170.0)
 
+    @pytest.mark.parametrize(
+        ("columns", "result_column", "expected"),
+        [
+            ({"distance": "1609", "distance_unit": "m"}, "distance_km", 1.609),
+            (
+                {"distance": "3", "distance_unit": "mi"},
+                "distance_km",
+                4.828032,
+            ),
+            (
+                {"calories": "418", "calories_unit": "kJ"},
+                "calories",
+                418 / 4.184,
+            ),
+            ({"distance": "5100"}, "distance_km", 5.1),
+        ],
+        ids=[
+            "integer-metres",
+            "integer-miles",
+            "integer-kilojoules",
+            "integer-fallback-metres",
+        ],
+    )
+    def test_integerartige_rohwerte_erlauben_bruchteilige_umrechnung(
+        self, columns, result_column, expected
+    ):
+        result = _typed_measurements(**columns)
+
+        assert result.loc[0, result_column] == pytest.approx(expected)
+
     def test_gemischte_einheiten_werden_pro_zeile_umgerechnet(self):
         result = _typed_measurements(
             distance=[5.0, 5000.0],
@@ -252,7 +282,7 @@ class TestAppleEinheiten:
         assert result[result_columns].isna().all().all()
         assert caplog.messages == [
             f"Apple: Einheit '{unit}' für {quantity} nicht unterstützt; "
-            "2 Wert(e) auf NaN gesetzt"
+            "2 Zeile(n) auf NaN gesetzt"
         ]
 
     def test_einheitenspalten_bleiben_ausserhalb_des_zielschema(self):

@@ -18,7 +18,7 @@ den Importpfad, ein vorheriges `pip install -e .` ist also nicht nötig.
 |---|---|
 | `test_validators.py` | Die fünf Plausibilitätsregeln, jeweils an den Grenzwerten |
 | `test_garmin_typing.py` | Dauer-Umrechnung und Regressionstests für europäische Datumsformate |
-| `test_apple_typing.py` | Lokale Zeitsemantik, gemischte Zeitzonen-Offsets und fehlende Zeitstempel |
+| `test_apple_typing.py` | Lokale Zeitsemantik, gemischte Zeitzonen-Offsets, deklarierte und fehlende Einheiten, zeilenweise Umrechnung und präzise Warnungen |
 | `test_schema.py` | Spalten und Datentypen nach Bereinigung und nach `run_pipeline` |
 | `test_imputation.py` | Die vierstufige Fallback-Kette der Kalorien-Imputation |
 | `test_pipeline_core.py` | Fehlerbehandlung bei kritischen und unkritischen Schritten |
