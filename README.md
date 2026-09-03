@@ -232,19 +232,24 @@ Zusätzlich erzeugt die Pipeline für jede Quelle einen `CleaningReport`. Dieser
 
 ```text
 .
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── .python-version
 ├── data/
-│   ├── apple/
-│   │   └── <export-date>/
-│   │       └── Export.xml
-│   ├── garmin/
-│   │   └── <export-date>/
-│   │       └── Activities.csv
+│   ├── apple/       # Rohdaten lokal (.gitignore)
+│   ├── garmin/      # Rohdaten lokal (.gitignore)
 │   ├── interim/
 │   └── processed/
 │       ├── combined_runs.csv
 │       └── combined_runs.parquet
+├── docs/
+│   ├── data_wrangling.html
+│   └── README.md
 ├── notebooks/
 │   └── data_wrangling.qmd
+├── scripts/
+│   └── check.sh
 ├── src/
 │   └── running_data/
 │       ├── cleaning/
@@ -273,9 +278,13 @@ Zusätzlich erzeugt die Pipeline für jede Quelle einen `CleaningReport`. Dieser
 ├── tests/
 │   ├── fixtures/
 │   │   ├── apple/
+│   │   │   └── 2025-08-22/Export.xml
 │   │   └── garmin/
+│   │       └── 2025-08-22/Activities.csv
 │   ├── conftest.py
+│   ├── test_apple_typing.py
 │   ├── test_export.py
+│   ├── test_features.py
 │   ├── test_garmin_typing.py
 │   ├── test_imputation.py
 │   ├── test_pipeline_core.py
@@ -477,13 +486,21 @@ Beispiel ohne Dateiexport:
 result = run_pipeline(output_dir=None)
 ```
 
-## Tests
+## Tests und Quality Gates
 
-Die Testumgebung wird mit `requirements-dev.txt` installiert.
+Die Entwicklungsumgebung wird mit `requirements-dev.txt` installiert. Sämtliche Quality Gates (Formatierung mit Black, Linting mit Ruff, statische Typisierung mit mypy, strikte Testausführung ohne Warnungen sowie Testabdeckung) werden über ein zentrales Skript ausgeführt:
 
 ```bash
-pytest
+./scripts/check.sh
 ```
+
+Alternativ können die Tests direkt aufgerufen werden:
+
+```bash
+pytest -W error --cov=src/running_data
+```
+
+Alle 198 Tests laufen ohne Warnungen und mit einer gemessenen Gesamtabdeckung von **97.94%** (Vorgabe: >= 90%) durch. Ein GitHub Actions Workflow (`.github/workflows/ci.yml`) führt diese Prüfungen sowie synthetische Dry-Runs bei jedem Push und Pull Request auf `main` automatisch aus.
 
 Die Tests greifen **nicht** auf persönliche Daten unter `data/` zu. Sie verwenden:
 
