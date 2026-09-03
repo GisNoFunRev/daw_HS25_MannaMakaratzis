@@ -31,7 +31,7 @@ PARQUET_ENGINE = "pyarrow"
 
 def write_outputs(
     df: pd.DataFrame,
-    output_dir: Path = PROCESSED_DIR,
+    output_dir: Path | str = PROCESSED_DIR,
     basename: str = OUTPUT_BASENAME,
 ) -> dict[str, Path]:
     """Schreibt den Datensatz als Parquet und CSV.
@@ -48,11 +48,12 @@ def write_outputs(
         Die geschriebenen Pfade unter den Schlüsseln "parquet" und
         "csv".
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
     paths = {
-        "parquet": output_dir / f"{basename}.parquet",
-        "csv": output_dir / f"{basename}.csv",
+        "parquet": output_path / f"{basename}.parquet",
+        "csv": output_path / f"{basename}.csv",
     }
 
     df.to_parquet(paths["parquet"], index=False, engine=PARQUET_ENGINE)
@@ -67,7 +68,7 @@ def write_outputs(
 
 
 def read_processed(
-    output_dir: Path = PROCESSED_DIR, basename: str = OUTPUT_BASENAME
+    output_dir: Path | str = PROCESSED_DIR, basename: str = OUTPUT_BASENAME
 ) -> pd.DataFrame:
     """Liest den zuvor geschriebenen Datensatz aus der Parquet-Datei.
 
@@ -81,7 +82,7 @@ def read_processed(
     Returns:
         Der eingelesene Datensatz.
     """
-    path = output_dir / f"{basename}.parquet"
+    path = Path(output_dir) / f"{basename}.parquet"
     df = pd.read_parquet(path)
     logger.info("Gelesen: %s (%d Zeilen)", path, len(df))
     return df

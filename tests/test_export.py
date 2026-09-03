@@ -57,6 +57,15 @@ class TestWriteOutputs:
 
         assert not any(spalte.startswith("Unnamed") for spalte in aus_csv.columns)
 
+    def test_akzeptiert_string_pfad(self, garmin_cleaned, tmp_path):
+        """write_outputs und read_processed müssen auch str-Pfade akzeptieren."""
+        str_pfad = str(tmp_path / "str_ordner")
+        pfade = write_outputs(garmin_cleaned, str_pfad)
+
+        assert pfade["parquet"].exists()
+        gelesen = read_processed(str_pfad)
+        assert len(gelesen) == len(garmin_cleaned)
+
 
 class TestRoundtrip:
     """Schreiben und Wiedereinlesen muss verlustfrei sein."""
