@@ -9,6 +9,7 @@ einem frischen Checkout ohne Rohdaten durchlaufen.
 """
 
 import logging
+import warnings
 
 import pandas as pd
 import pytest
@@ -16,6 +17,7 @@ import pytest
 from running_data import DataCleaningConfig, PipelineResult, run_pipeline
 from running_data.__main__ import build_parser, main
 from running_data.export import read_processed
+from running_data.pipeline.factory import DEFAULT_CLEANING_STEPS
 
 from conftest import APPLE_FIXTURE_GLOB, GARMIN_FIXTURE_GLOB
 
@@ -84,6 +86,23 @@ class TestErgebnis:
         assert isinstance(ergebnis, PipelineResult)
 
 
+class TestPandasKompatibilitaet:
+    """Strikte Warnungen dürfen keine Bereinigungsschritte überspringen."""
+
+    def test_alle_schritte_laufen_mit_futurewarning_als_fehler(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            result = run_pipeline(
+                garmin_path=GARMIN_FIXTURE_GLOB,
+                apple_path=APPLE_FIXTURE_GLOB,
+                output_dir=None,
+            )
+
+        expected_steps = [step.name for step in DEFAULT_CLEANING_STEPS]
+        for report in result.reports.values():
+            assert report.to_dataframe()["step"].tolist() == expected_steps
+
+
 class TestSchreiben:
     """Verhalten von output_dir."""
 
@@ -101,6 +120,7 @@ class TestSchreiben:
         assert result.outputs["parquet"].exists()
         assert result.outputs["csv"].exists()
 
+    @pytest.mark.filterwarnings("error:Mismatched null-like values.*:FutureWarning")
     def test_geschriebene_datei_entspricht_dem_ergebnis(self, tmp_path):
         result = run_pipeline(
             garmin_path=GARMIN_FIXTURE_GLOB,

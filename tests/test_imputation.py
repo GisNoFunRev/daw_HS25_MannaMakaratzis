@@ -13,6 +13,8 @@ erzwingt:
     level0   der gesamte Datensatz
 """
 
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -184,6 +186,32 @@ class TestHerkunftsspalten:
         impute_grouped_calories(df, config)
 
         pd.testing.assert_frame_equal(df, vorher)
+
+    def test_imputation_level_nutzt_nullable_stringtyp(self, make_runs, config):
+        df = make_runs(distance_km=[3.0, 4.0], calories=[300.0, np.nan])
+
+        ergebnis = impute_grouped_calories(df, config)
+
+        assert isinstance(ergebnis["imputation_level"].dtype, pd.StringDtype)
+
+
+class TestPandasKompatibilitaet:
+    """Kategoriale Gruppierungen bleiben auch unter strikten Warnungen stabil."""
+
+    def test_imputation_ist_ohne_futurewarning_ausfuehrbar(self, make_runs, config):
+        df = make_runs(
+            source=["garmin", "garmin", "apple", "apple"],
+            distance_km=[3.0, 4.0, 3.0, 4.0],
+            avg_heart_rate=[140.0, 150.0, 160.0, 170.0],
+            calories=[300.0, np.nan, 400.0, np.nan],
+        )
+        df["source"] = df["source"].astype("category")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            ergebnis = impute_grouped_calories(df, config)
+
+        assert ergebnis["calories"].notna().all()
 
 
 class TestDistanzklassen:
