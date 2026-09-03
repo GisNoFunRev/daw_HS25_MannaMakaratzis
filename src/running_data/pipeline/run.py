@@ -129,7 +129,7 @@ def _prepare_apple(apple_path: str) -> pd.DataFrame:
 def run_pipeline(
     garmin_path: str = GARMIN_GLOB,
     apple_path: str = APPLE_GLOB,
-    output_dir: Path | None = PROCESSED_DIR,
+    output_dir: Path | str | None = PROCESSED_DIR,
     config: DataCleaningConfig | None = None,
 ) -> PipelineResult:
     """Führt die gesamte Verarbeitung von den Rohdateien bis zum Export aus.
