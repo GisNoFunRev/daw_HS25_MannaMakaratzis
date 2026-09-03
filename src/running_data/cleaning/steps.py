@@ -155,9 +155,7 @@ def step_clean_heart_rate(
 
     for col in ("avg_heart_rate", "max_heart_rate"):
         before_nan = df[col].isna().sum()
-        source_medians = df.groupby("source", observed=False)[col].transform(
-            "median"
-        )
+        source_medians = df.groupby("source", observed=False)[col].transform("median")
         df[col] = df[col].fillna(source_medians)
         after_nan = df[col].isna().sum()
         logger.info(
@@ -225,7 +223,7 @@ def step_final_hr_sweep(
     """Schritt 7 — entfernt Zeilen mit unphysiologischer Herzfrequenz.
 
     Abschliessende Kontrolle nach der Imputation: Werte ausserhalb des
-    konfigurierten Bereichs (80–210 bpm) führen zum Verwerfen der Zeile.
+    konfigurierten Bereichs (80-210 bpm) führen zum Verwerfen der Zeile.
     """
     validator = DataValidator()
     return df[validator.validate_heart_rate(df, config)].copy()

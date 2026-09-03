@@ -24,8 +24,8 @@ ausgenommen. Dort ist ein leerer Wert eine Aussage und kein Mangel.
 import numpy as np
 import pandas as pd
 
-from ..config import DUPLICATE_KEY_COLUMNS, PROVENANCE_COLUMNS, DataCleaningConfig
 from ..cleaning.validators import DataValidator
+from ..config import DUPLICATE_KEY_COLUMNS, PROVENANCE_COLUMNS, DataCleaningConfig
 
 # Schwellen für die Statusanzeige im Qualitätsbericht.
 STATUS_GOOD_THRESHOLD = 0.95

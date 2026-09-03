@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality-gates:
+    name: Quality Gates & Dry Runs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -e .
+
+      - name: Run all quality gates (format, lint, types, coverage, warnings)
+        run: ./scripts/check.sh
+
+      - name: Run synthetic CLI dry-run
+        run: >-
+          python -m running_data
+          --garmin "tests/fixtures/garmin/*/Activities.csv"
+          --apple "tests/fixtures/apple/*/Export.xml"
+          --dry-run
+
+      - name: Run Snakemake workflow dry-run
+        run: snakemake -n

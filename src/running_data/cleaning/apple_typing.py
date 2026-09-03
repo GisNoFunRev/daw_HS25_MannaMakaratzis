@@ -198,14 +198,18 @@ def _normalize_units(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[duration_fallback_rows, "duration_sec"] = (
             fallback_durations * DURATION_FACTORS_TO_SECONDS["min"]
         )
-        logger.info("Apple: duration_sec war in MINUTEN → in Sekunden umgerechnet (×60)")
+        logger.info(
+            "Apple: duration_sec war in MINUTEN -> in Sekunden umgerechnet (*60)"
+        )
 
     fallback_distances = df.loc[distance_fallback_rows, "distance_km"]
     if (fallback_distances > METERS_HEURISTIC_THRESHOLD).any():
         df.loc[distance_fallback_rows, "distance_km"] = (
             fallback_distances * DISTANCE_FACTORS_TO_KM["m"]
         )
-        logger.info("Apple: distance_km war in METERN → in Kilometer umgerechnet (/1000)")
+        logger.info(
+            "Apple: distance_km war in METERN -> in Kilometer umgerechnet (/1000)"
+        )
 
     return df
 

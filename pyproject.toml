@@ -29,6 +29,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=9.0",
+    "pytest-cov>=7.0",
+    "black>=26.0",
+    "ruff>=0.16",
+    "mypy>=2.0",
+    "nbclient>=0.11",
+    "ipykernel>=7.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -41,6 +47,22 @@ where = ["src"]
 line-length = 88
 target-version = ["py311"]
 
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "RUF"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+check_untyped_defs = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Damit "pytest" auch ohne vorheriges "pip install -e ." funktioniert: Das
@@ -48,3 +70,11 @@ testpaths = ["tests"]
 # Angabe wirkungslos, weil der Import ohnehin gelingt.
 pythonpath = ["src"]
 addopts = "--strict-markers -q"
+
+[tool.coverage.run]
+source = ["src/running_data"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

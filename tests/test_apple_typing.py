@@ -137,9 +137,7 @@ class TestAppleEinheiten:
         ],
         ids=["kilometres", "metres", "miles"],
     )
-    def test_distanz_wird_in_kilometer_umgerechnet(
-        self, value, unit, expected_km
-    ):
+    def test_distanz_wird_in_kilometer_umgerechnet(self, value, unit, expected_km):
         result = _typed_measurements(distance=value, distance_unit=unit)
 
         assert result.loc[0, "distance_km"] == pytest.approx(expected_km)
@@ -149,9 +147,7 @@ class TestAppleEinheiten:
         [(30.0, "min", 1800.0), (1800.0, "s", 1800.0)],
         ids=["minutes", "seconds"],
     )
-    def test_dauer_wird_in_sekunden_umgerechnet(
-        self, value, unit, expected_seconds
-    ):
+    def test_dauer_wird_in_sekunden_umgerechnet(self, value, unit, expected_seconds):
         result = _typed_measurements(duration=value, duration_unit=unit)
 
         assert result.loc[0, "duration_sec"] == pytest.approx(expected_seconds)
@@ -161,9 +157,7 @@ class TestAppleEinheiten:
         [(100.0, "kcal", 100.0), (418.4, "kJ", 100.0)],
         ids=["kilocalories", "kilojoules"],
     )
-    def test_energie_wird_in_kilokalorien_umgerechnet(
-        self, value, unit, expected_kcal
-    ):
+    def test_energie_wird_in_kilokalorien_umgerechnet(self, value, unit, expected_kcal):
         result = _typed_measurements(calories=value, calories_unit=unit)
 
         assert result.loc[0, "calories"] == pytest.approx(expected_kcal)

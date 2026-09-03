@@ -28,9 +28,7 @@ class DataValidator:
     """
 
     @staticmethod
-    def validate_distance(
-        df: pd.DataFrame, config: DataCleaningConfig
-    ) -> pd.Series:
+    def validate_distance(df: pd.DataFrame, config: DataCleaningConfig) -> pd.Series:
         """Prüft die Distanz auf einen realistischen Bereich.
 
         Returns:
@@ -41,9 +39,7 @@ class DataValidator:
         )
 
     @staticmethod
-    def validate_duration(
-        df: pd.DataFrame, config: DataCleaningConfig
-    ) -> pd.Series:
+    def validate_duration(df: pd.DataFrame, config: DataCleaningConfig) -> pd.Series:
         """Prüft die Dauer auf einen realistischen Bereich.
 
         Returns:
@@ -68,9 +64,7 @@ class DataValidator:
         return pace.between(config.PACE_MIN, config.PACE_MAX, inclusive="both")
 
     @staticmethod
-    def validate_heart_rate(
-        df: pd.DataFrame, config: DataCleaningConfig
-    ) -> pd.Series:
+    def validate_heart_rate(df: pd.DataFrame, config: DataCleaningConfig) -> pd.Series:
         """Prüft die durchschnittliche Herzfrequenz auf physiologische Grenzen.
 
         Returns:

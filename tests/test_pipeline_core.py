@@ -204,7 +204,5 @@ def test_leere_eingabe_ergibt_verstaendlichen_fehler(config):
     pipeline = DataCleaningPipeline("Test", config)
     pipeline.add_step(_schritt("Kritisch", _unveraendert, kritisch=True))
 
-    with pytest.raises(
-        ValueError, match="Critical step 'Kritisch' removed all data"
-    ):
+    with pytest.raises(ValueError, match="Critical step 'Kritisch' removed all data"):
         pipeline.run(pd.DataFrame({"a": []}))

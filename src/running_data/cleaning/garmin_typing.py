@@ -113,7 +113,9 @@ def convert_duration_to_seconds(duration_str: object) -> float:
             return parts[0] * 3600 + parts[1] * 60 + parts[2]
         if len(parts) == 2:  # mm:ss
             return parts[0] * 60 + parts[1]
-        return float(duration_str)  # bereits numerisch
+        if len(parts) == 1:
+            return parts[0]
+        return np.nan
     except (ValueError, TypeError):
         return np.nan
 
