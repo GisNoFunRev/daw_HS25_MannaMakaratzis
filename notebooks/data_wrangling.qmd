@@ -20,15 +20,8 @@ pip install -e .
 ```
 
 ```{python}
-import warnings
-
 import numpy as np
 import pandas as pd
-
-# Nur fuer die Notebook-Darstellung: unterdrueckt Warnungen, die die
-# Ausgabe unleserlich machen. Bewusst nicht im Paketcode - dort wuerden
-# damit auch echte Probleme verborgen.
-warnings.filterwarnings("ignore")
 
 from running_data import (
     DataCleaningConfig,
