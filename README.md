@@ -136,6 +136,8 @@ pace_min_per_km = duration_min / distance_km
 
 Die Pace beschreibt, wie viele Minuten durchschnittlich für einen Kilometer benötigt werden. Sie ist eine zentrale Kennzahl im Laufsport und macht Läufe unterschiedlicher Distanz direkt vergleichbar.
 
+`add_features()` arbeitet auf einer Kopie und bewahrt alle vorhandenen Spalten. Bei einer Distanz kleiner oder gleich null ist die Pace fachlich nicht definiert und wird deshalb als fehlender Wert statt als unendlicher Wert ausgegeben. Die normale Bereinigung entfernt solche Distanzen bereits vorher; diese Absicherung schützt zusätzlich direkte Aufrufe der öffentlichen Funktion.
+
 **Wichtig für Nicht-Läufer:** Bei der Pace bedeutet ein **kleinerer Wert ein höheres Lauftempo**. Eine Pace von `5.0 min/km` ist also schneller als `6.0 min/km`.
 
 > **Bewusst nicht als Feature umgesetzt: Herzfrequenzzonen**  
@@ -490,13 +492,14 @@ Die Tests greifen **nicht** auf persönliche Daten unter `data/` zu. Sie verwend
 - `make_runs` aus `tests/conftest.py`: synthetische DataFrames, mit denen einzelne Grenzfälle gezielt konstruiert werden
 - temporäre Verzeichnisse von `pytest` für Exporttests, damit `data/processed/` während der Tests nicht verändert wird
 
-Die Testsuite besteht aktuell aus **neun Testmodulen**:
+Die Testsuite besteht aktuell aus **zehn Testmodulen**:
 
 | **Testmodul** | **Abgedeckter Bereich** |
 |---|---|
 | `test_validators.py` | Die fünf Plausibilitätsregeln und ihre Grenzwerte für Distanz, Dauer, Pace und Herzfrequenz |
 | `test_garmin_typing.py` | Lauf-Filter, Reduktion auf das Rohschema, Dauerumrechnung, Distanz-Heuristik, Datentypen, gemeinsames Schema, Entfernung der Rohspalte `duration` und Regressionstest für den Garmin-Datumsfehler |
 | `test_apple_typing.py` | Lokale Zeitsemantik, gemischte Zeitzonen-Offsets, deklarierte und fehlende Einheiten, zeilenweise Umrechnung sowie Warnungen für nicht unterstützte Einheiten |
+| `test_features.py` | Dauer- und Pace-Formeln, unveränderte Eingabedaten, Erhalt bestehender Spalten und sichere Pace bei Nulldistanz |
 | `test_schema.py` | Gemeinsames Schema beider Quellen, Datentypen nach dem Cleaning, Pflichtfelder, finales Ergebnisschema, Features, Quellen, Zeilenzahl, chronologische Sortierung und dokumentiertes Kategorie-Verhalten nach `concat` |
 | `test_imputation.py` | Alle vier Ebenen der Kalorien-Fallback-Kette, Herkunftsspalten, Behandlung von Null- und Negativwerten, Distanzklassen, Entfernung interner Hilfsspalten und Hilfslogik für Winsorising |
 | `test_pipeline_core.py` | Reihenfolge und Verkettung von Schritten, `CleaningReport`, unveränderte Eingabe sowie Fehlerbehandlung kritischer und unkritischer Schritte |
@@ -559,4 +562,3 @@ Die Tests verwenden bewusst kleine, erfundene Datensätze, die nur die technisch
 - `tests/fixtures/apple/2025-08-22/Export.xml`
 
 Zusätzlich erzeugt `make_runs` in `tests/conftest.py` synthetische Laufdatensätze für gezielte Testfälle. Dadurch kann das Projekt nach einem frischen Checkout getestet werden, ohne Zugriff auf persönliche Rohdaten zu benötigen.
-

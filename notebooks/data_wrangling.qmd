@@ -465,7 +465,9 @@ Aus den bereinigten Messwerten lassen sich Kennzahlen ableiten, die für die
 Interpretation eines Laufs aussagekräftiger sind als die Rohwerte.
 `add_features` ergänzt `pace_min_per_km` und `duration_min` als sichtbare
 Spalten. Die Pace wurde zuvor bereits in den Validatoren berechnet, dort aber
-nur zur Plausibilitätsprüfung verwendet und anschliessend verworfen.
+nur zur Plausibilitätsprüfung verwendet und anschliessend verworfen. Die
+Funktion bewahrt alle bestehenden Spalten und gibt für eine nichtpositive
+Distanz eine fehlende statt einer unendlichen Pace zurück.
 
 ```{python}
 combined_featured = add_features(combined_no_dedupe)

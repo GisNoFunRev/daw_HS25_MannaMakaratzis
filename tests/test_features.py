@@ -34,9 +34,16 @@ def test_eingabe_bleibt_unveraendert():
     pd.testing.assert_frame_equal(result[before.columns], before)
 
 
-def test_null_distanz_ergibt_fehlende_pace_statt_unendlich():
+@pytest.mark.parametrize(
+    ("duration_sec", "distance_km"),
+    [(600.0, 0.0), (0.0, 0.0), (600.0, -1.0)],
+    ids=["positive-duration", "zero-duration", "negative-distance"],
+)
+def test_nichtpositive_distanz_ergibt_fehlende_pace_statt_unendlich(
+    duration_sec, distance_km
+):
     result = add_features(
-        _runs(duration_sec=[600.0, 0.0], distance_km=[0.0, 0.0])
+        _runs(duration_sec=[duration_sec] * 2, distance_km=[distance_km] * 2)
     )
 
     assert result["pace_min_per_km"].isna().all()
